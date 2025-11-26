@@ -23,44 +23,57 @@ export const InventarioTab: React.FC<InventarioTabProps> = ({ empresaId, onNavig
   const [searchTermInput, setSearchTermInput] = useState('');
   const [showInactive, setShowInactive] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState('');
+  const [allLocations, setAllLocations] = useState<string[]>([]);
 
   const debouncedSearchTerm = useDebounce(searchTermInput, 300);
 
-  const fetchProdutos = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const data = await pocketbaseService.getAllProdutos(empresaId, showInactive);
-      setProdutos(data);
-    } catch (error) {
-      console.error("Erro ao carregar inventário:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [empresaId, showInactive]);
-
+  // Effect to fetch unique locations for the filter dropdown
   useEffect(() => {
+    let isMounted = true;
+    const fetchLocations = async () => {
+      try {
+        const locationsData = await pocketbaseService.getUniqueProductLocations(empresaId);
+        if (isMounted) {
+          setAllLocations(locationsData);
+        }
+      } catch (error) {
+        console.error("Erro ao carregar localizações:", error);
+        showToast('Falha ao carregar filtros de localização.', 'error');
+      }
+    };
+    fetchLocations();
+    return () => { isMounted = false; };
+  }, [empresaId, showToast]);
+
+  // Main effect to fetch filtered products from the server
+  useEffect(() => {
+    let isMounted = true;
+    const fetchProdutos = async () => {
+      setIsLoading(true);
+      try {
+        const options = {
+          searchTerm: debouncedSearchTerm,
+          location: selectedLocation
+        };
+        const data = await pocketbaseService.getAllProdutos(empresaId, showInactive, options);
+        if (isMounted) {
+          setProdutos(data);
+        }
+      } catch (error) {
+        console.error("Erro ao carregar inventário:", error);
+        showToast('Falha ao carregar lista de produtos.', 'error');
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
     fetchProdutos();
-  }, [fetchProdutos]);
-  
-  const uniqueLocations = useMemo(() => {
-    const locations = new Set(produtos.map(p => p.localizacao.trim()).filter(Boolean));
-    return Array.from(locations).sort();
-  }, [produtos]);
+    return () => { isMounted = false; };
+  }, [empresaId, showInactive, debouncedSearchTerm, selectedLocation, showToast]);
 
-  const filteredProdutos = useMemo(() => {
-    const term = debouncedSearchTerm.toLowerCase();
-    return produtos.filter(p => {
-        const matchesSearchTerm = !debouncedSearchTerm ||
-            p.codigo.toLowerCase().includes(term) ||
-            p.descricao.toLowerCase().includes(term) ||
-            p.localizacao.toLowerCase().includes(term) ||
-            p.codigos_alternativos.some(c => c.toLowerCase().includes(term));
-
-        const matchesLocation = !selectedLocation || p.localizacao === selectedLocation;
-
-        return matchesSearchTerm && matchesLocation;
-    });
-  }, [produtos, debouncedSearchTerm, selectedLocation]);
+  // `produtos` state is now the filtered list from the server.
+  const filteredProdutos = produtos;
 
   const valorTotalInventario = useMemo(() => {
     return filteredProdutos.reduce((acc, p) => acc + p.valor * p.quantidade, 0);
@@ -84,6 +97,11 @@ export const InventarioTab: React.FC<InventarioTabProps> = ({ empresaId, onNavig
             'Valor Total': p.valor * p.quantidade,
             'Códigos Alternativos': p.codigos_alternativos.join(', ')
         }));
+
+        if (dataToExport.length === 0) {
+            showToast('Nenhum dado para exportar.', 'warning');
+            return;
+        }
 
         const worksheet = XLSX.utils.json_to_sheet(dataToExport);
         const workbook = XLSX.utils.book_new();
@@ -111,7 +129,7 @@ export const InventarioTab: React.FC<InventarioTabProps> = ({ empresaId, onNavig
   };
 
 
-  if (isLoading) {
+  if (isLoading && produtos.length === 0) {
     return <div className="flex justify-center items-center h-64"><Spinner /></div>;
   }
   
@@ -211,7 +229,7 @@ export const InventarioTab: React.FC<InventarioTabProps> = ({ empresaId, onNavig
                 style={{ backgroundColor: 'var(--color-background)', color: 'var(--color-text)', border: '1px solid var(--color-border)' }}
             >
                 <option value="">Todas</option>
-                {uniqueLocations.map(location => (
+                {allLocations.map(location => (
                     <option key={location} value={location}>{location}</option>
                 ))}
             </select>
@@ -250,7 +268,12 @@ export const InventarioTab: React.FC<InventarioTabProps> = ({ empresaId, onNavig
             </tr>
           </thead>
           <tbody>
-            {filteredProdutos.map((produto, index) => {
+            {isLoading && (
+              <tr>
+                <td colSpan={8} className="text-center p-8"><Spinner/></td>
+              </tr>
+            )}
+            {!isLoading && filteredProdutos.map((produto) => {
               const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=50x50&data=${encodeURIComponent(produto.codigo)}&qzone=1&margin=0`;
               return (
               <tr key={produto.id} className="border-t hover:bg-white/5" style={{ borderColor: 'var(--color-border)', opacity: produto.status === 'inativo' ? 0.5 : 1 }}>
@@ -293,7 +316,7 @@ export const InventarioTab: React.FC<InventarioTabProps> = ({ empresaId, onNavig
                 </td>
               </tr>
             )})}
-             {filteredProdutos.length === 0 && (
+             {!isLoading && filteredProdutos.length === 0 && (
                 <tr>
                     <td colSpan={8} className="text-center p-8" style={{color: 'var(--color-text-secondary)'}}>Nenhum produto encontrado.</td>
                 </tr>

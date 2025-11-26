@@ -3,7 +3,7 @@ import type { User, Empresa, Produto, Movimentacao, Separacao, SeparacaoItem, Co
 
 const pb = new PocketBase('https://sistemaB.fs-sistema.cloud/');
 
-// Cache for products to reduce API calls
+// Cache for products to reduce API calls (for single product lookups)
 const productCache = new Map<string, Produto>();
 
 const getAuthHeader = () => {
@@ -89,7 +89,7 @@ export const pocketbaseService = {
         }
     },
 
-    async getAllProdutos(empresaId: string, includeInactive: boolean = false, options: { searchTerm?: string } = {}): Promise<Produto[]> {
+    async getAllProdutos(empresaId: string, includeInactive: boolean = false, options: { searchTerm?: string; location?: string } = {}): Promise<Produto[]> {
         const filterParts: string[] = [`empresa = "${empresaId}"`];
         
         if (!includeInactive) {
@@ -97,17 +97,29 @@ export const pocketbaseService = {
         }
 
         if (options.searchTerm) {
-            const term = options.searchTerm.toLowerCase();
+            const term = options.searchTerm;
             const searchFilter = `(codigo ~ "${term}" || descricao ~ "${term}" || localizacao ~ "${term}" || codigos_alternativos ~ "${term}")`;
             filterParts.push(searchFilter);
+        }
+
+        if (options.location) {
+            filterParts.push(`localizacao = "${options.location}"`);
         }
         
         const filter = filterParts.join(' && ');
 
         const produtos = await pb.collection('produtos').getFullList<Produto>({ filter, sort: 'descricao' });
-        // Update cache
-        produtos.forEach(p => productCache.set(`${empresaId}-${p.codigo.toLowerCase()}`, p));
         return produtos;
+    },
+    
+    async getUniqueProductLocations(empresaId: string): Promise<string[]> {
+        const records = await pb.collection('produtos').getFullList<{ localizacao: string }>({
+            filter: `empresa = "${empresaId}" && localizacao != ""`,
+            fields: 'localizacao',
+        });
+        const locations = new Set(records.map(r => r.localizacao.trim()));
+        // FIX: Use spread syntax instead of Array.from to ensure correct type inference.
+        return [...locations].sort();
     },
 
     async cadastrarProduto(novoProdutoData: Omit<Produto, 'id' | 'collectionId' | 'collectionName' | 'created' | 'updated'>, userId: string): Promise<Produto> {
