@@ -3,7 +3,7 @@ import { pocketbaseService } from '../../services/pocketbaseService';
 import type { Produto, Tab } from '../../types';
 import { formatCurrency } from '../../utils/formatters';
 import Spinner from '../Spinner';
-import { PrintIcon, ViewIcon, EditIcon, FileSpreadsheetIcon } from '../icons/Icon';
+import { PrintIcon, ViewIcon, EditIcon, FileSpreadsheetIcon, ArrowUpIcon, ArrowDownIcon } from '../icons/Icon';
 import HelpIcon from '../HelpIcon';
 import { useDebounce } from '../../hooks/useDebounce';
 
@@ -16,6 +16,9 @@ interface InventarioTabProps {
   showToast: (message: string, type: 'success' | 'error' | 'warning') => void;
 }
 
+type SortKey = 'codigo' | 'descricao' | 'status' | 'quantidade' | 'localizacao' | 'valor';
+type SortDirection = 'asc' | 'desc';
+
 export const InventarioTab: React.FC<InventarioTabProps> = ({ empresaId, onNavigateToTab, showToast }) => {
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -24,6 +27,8 @@ export const InventarioTab: React.FC<InventarioTabProps> = ({ empresaId, onNavig
   const [showInactive, setShowInactive] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState('');
   const [allLocations, setAllLocations] = useState<string[]>([]);
+  const [sortKey, setSortKey] = useState<SortKey>('descricao');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
 
   const debouncedSearchTerm = useDebounce(searchTermInput, 300);
 
@@ -36,16 +41,19 @@ export const InventarioTab: React.FC<InventarioTabProps> = ({ empresaId, onNavig
         if (isMounted) {
           setAllLocations(locationsData);
         }
-      } catch (error) {
-        console.error("Erro ao carregar localizações:", error);
-        showToast('Falha ao carregar filtros de localização.', 'error');
+      } catch (error: any) {
+        // Gracefully handle request cancellation, which is not a true error
+        if (!error.isAbort) {
+            console.error("Erro ao carregar localizações:", error);
+            showToast('Falha ao carregar filtros de localização.', 'error');
+        }
       }
     };
     fetchLocations();
     return () => { isMounted = false; };
   }, [empresaId, showToast]);
 
-  // Main effect to fetch filtered products from the server
+  // Main effect to fetch filtered and sorted products from the server
   useEffect(() => {
     let isMounted = true;
     const fetchProdutos = async () => {
@@ -53,15 +61,20 @@ export const InventarioTab: React.FC<InventarioTabProps> = ({ empresaId, onNavig
       try {
         const options = {
           searchTerm: debouncedSearchTerm,
-          location: selectedLocation
+          location: selectedLocation,
+          sortKey: sortKey,
+          sortDirection: sortDirection,
         };
         const data = await pocketbaseService.getAllProdutos(empresaId, showInactive, options);
         if (isMounted) {
           setProdutos(data);
         }
-      } catch (error) {
-        console.error("Erro ao carregar inventário:", error);
-        showToast('Falha ao carregar lista de produtos.', 'error');
+      } catch (error: any) {
+        // Gracefully handle request cancellation
+        if (!error.isAbort) {
+            console.error("Erro ao carregar inventário:", error);
+            showToast('Falha ao carregar lista de produtos.', 'error');
+        }
       } finally {
         if (isMounted) {
           setIsLoading(false);
@@ -70,14 +83,20 @@ export const InventarioTab: React.FC<InventarioTabProps> = ({ empresaId, onNavig
     };
     fetchProdutos();
     return () => { isMounted = false; };
-  }, [empresaId, showInactive, debouncedSearchTerm, selectedLocation, showToast]);
+  }, [empresaId, showInactive, debouncedSearchTerm, selectedLocation, sortKey, sortDirection, showToast]);
 
-  // `produtos` state is now the filtered list from the server.
-  const filteredProdutos = produtos;
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDirection('asc');
+    }
+  };
 
   const valorTotalInventario = useMemo(() => {
-    return filteredProdutos.reduce((acc, p) => acc + p.valor * p.quantidade, 0);
-  }, [filteredProdutos]);
+    return produtos.reduce((acc, p) => acc + p.valor * p.quantidade, 0);
+  }, [produtos]);
 
   const handlePrint = () => {
     window.print();
@@ -87,7 +106,7 @@ export const InventarioTab: React.FC<InventarioTabProps> = ({ empresaId, onNavig
     if (isExporting) return;
     setIsExporting(true);
     try {
-        const dataToExport = filteredProdutos.map(p => ({
+        const dataToExport = produtos.map(p => ({
             'Código': p.codigo,
             'Descrição': p.descricao,
             'Status': p.status.toUpperCase(),
@@ -107,7 +126,6 @@ export const InventarioTab: React.FC<InventarioTabProps> = ({ empresaId, onNavig
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, 'Estoque');
         
-        // Auto-size columns
         const colWidths = Object.keys(dataToExport[0] || {}).map((key, i) => {
             const maxLength = Math.max(
                 key.length,
@@ -127,6 +145,15 @@ export const InventarioTab: React.FC<InventarioTabProps> = ({ empresaId, onNavig
         setIsExporting(false);
     }
   };
+  
+  const SortableHeader: React.FC<{ sortableKey: SortKey; label: string; className?: string }> = ({ sortableKey, label, className }) => (
+    <th className={`p-4 font-semibold cursor-pointer hover:bg-white/5 ${className}`} onClick={() => handleSort(sortableKey)}>
+      <div className="flex items-center gap-2">
+        <span>{label}</span>
+        {sortKey === sortableKey && (sortDirection === 'asc' ? <ArrowUpIcon className="w-4 h-4" /> : <ArrowDownIcon className="w-4 h-4" />)}
+      </div>
+    </th>
+  );
 
 
   if (isLoading && produtos.length === 0) {
@@ -154,7 +181,6 @@ export const InventarioTab: React.FC<InventarioTabProps> = ({ empresaId, onNavig
                 .no-print {
                     display: none !important;
                 }
-                /* Force black/white on elements with theme colors */
                 #printable-stock-report * {
                     background-color: transparent !important;
                     color: black !important;
@@ -173,7 +199,6 @@ export const InventarioTab: React.FC<InventarioTabProps> = ({ empresaId, onNavig
                 #printable-stock-report tfoot td {
                     font-weight: bold;
                 }
-                /* Ensure status badges are readable */
                 #printable-stock-report span[class*="bg-green-500"],
                 #printable-stock-report span[class*="bg-red-500"] {
                     border: 1px solid black;
@@ -257,12 +282,12 @@ export const InventarioTab: React.FC<InventarioTabProps> = ({ empresaId, onNavig
         <table className="w-full min-w-[800px] text-left print:text-black">
           <thead style={{ backgroundColor: 'var(--color-background)' }}>
             <tr>
-              <th className="p-4 font-semibold">Código</th>
-              <th className="p-4 font-semibold">Descrição</th>
-              <th className="p-4 font-semibold text-center">Status</th>
-              <th className="p-4 font-semibold text-center">Qtd.</th>
-              <th className="p-4 font-semibold">Localização</th>
-              <th className="p-4 font-semibold text-right">Valor Unit.</th>
+              <SortableHeader sortableKey="codigo" label="Código" />
+              <SortableHeader sortableKey="descricao" label="Descrição" />
+              <SortableHeader sortableKey="status" label="Status" className="text-center" />
+              <SortableHeader sortableKey="quantidade" label="Qtd." className="text-center" />
+              <SortableHeader sortableKey="localizacao" label="Localização" />
+              <SortableHeader sortableKey="valor" label="Valor Unit." className="text-right" />
               <th className="p-4 font-semibold text-right">Valor Total</th>
               <th className="p-4 font-semibold text-center no-print">Ações</th>
             </tr>
@@ -273,7 +298,7 @@ export const InventarioTab: React.FC<InventarioTabProps> = ({ empresaId, onNavig
                 <td colSpan={8} className="text-center p-8"><Spinner/></td>
               </tr>
             )}
-            {!isLoading && filteredProdutos.map((produto) => {
+            {!isLoading && produtos.map((produto) => {
               const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=50x50&data=${encodeURIComponent(produto.codigo)}&qzone=1&margin=0`;
               return (
               <tr key={produto.id} className="border-t hover:bg-white/5" style={{ borderColor: 'var(--color-border)', opacity: produto.status === 'inativo' ? 0.5 : 1 }}>
@@ -316,7 +341,7 @@ export const InventarioTab: React.FC<InventarioTabProps> = ({ empresaId, onNavig
                 </td>
               </tr>
             )})}
-             {!isLoading && filteredProdutos.length === 0 && (
+             {!isLoading && produtos.length === 0 && (
                 <tr>
                     <td colSpan={8} className="text-center p-8" style={{color: 'var(--color-text-secondary)'}}>Nenhum produto encontrado.</td>
                 </tr>

@@ -89,7 +89,16 @@ export const pocketbaseService = {
         }
     },
 
-    async getAllProdutos(empresaId: string, includeInactive: boolean = false, options: { searchTerm?: string; location?: string } = {}): Promise<Produto[]> {
+    async getAllProdutos(
+        empresaId: string, 
+        includeInactive: boolean = false, 
+        options: { 
+            searchTerm?: string; 
+            location?: string;
+            sortKey?: string;
+            sortDirection?: 'asc' | 'desc';
+        } = {}
+    ): Promise<Produto[]> {
         const filterParts: string[] = [`empresa = "${empresaId}"`];
         
         if (!includeInactive) {
@@ -107,8 +116,10 @@ export const pocketbaseService = {
         }
         
         const filter = filterParts.join(' && ');
+        const sortDirection = options.sortDirection === 'desc' ? '-' : '+';
+        const sort = `${sortDirection}${options.sortKey || 'descricao'}`;
 
-        const produtos = await pb.collection('produtos').getFullList<Produto>({ filter, sort: 'descricao' });
+        const produtos = await pb.collection('produtos').getFullList<Produto>({ filter, sort });
         return produtos;
     },
     
@@ -117,8 +128,8 @@ export const pocketbaseService = {
             filter: `empresa = "${empresaId}" && localizacao != ""`,
             fields: 'localizacao',
         });
-        const locations = new Set(records.map(r => r.localizacao.trim()));
-        // FIX: Use spread syntax instead of Array.from to ensure correct type inference.
+        // FIX: Explicitly cast `r.localizacao` to string. When using `fields` option, the PocketBase SDK may not correctly infer the type, leading to a TypeScript error where `r.localizacao` is `unknown`.
+        const locations = new Set(records.map(r => (r.localizacao as string).trim()));
         return [...locations].sort();
     },
 
