@@ -131,5 +131,4 @@ export interface User extends BaseRecord {
   avatar: string;
   // Custom fields
   role: UserRole;
-  empresas: string[]; // Array of company relation IDs
 }

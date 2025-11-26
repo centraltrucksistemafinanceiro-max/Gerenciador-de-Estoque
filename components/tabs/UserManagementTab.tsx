@@ -8,77 +8,9 @@ import HelpIcon from '../HelpIcon';
 
 type SafeUser = Omit<User, 'password_hash'>;
 
-const PermissionModal: React.FC<{
-    user: SafeUser;
-    allCompanies: Empresa[];
-    onClose: () => void;
-    onSave: (userId: string, companyIds: string[]) => Promise<void>;
-    showToast: (message: string, type: 'success' | 'error') => void;
-}> = ({ user, allCompanies, onClose, onSave, showToast }) => {
-    const [selectedCompanyIds, setSelectedCompanyIds] = useState<Set<string>>(new Set(user.empresas));
-    const [isSaving, setIsSaving] = useState(false);
-
-    const handleToggle = (companyId: string) => {
-        setSelectedCompanyIds(prev => {
-            const newSet = new Set(prev);
-            if (newSet.has(companyId)) {
-                newSet.delete(companyId);
-            } else {
-                newSet.add(companyId);
-            }
-            return newSet;
-        });
-    };
-
-    const handleSave = async () => {
-        setIsSaving(true);
-        try {
-            await onSave(user.id, Array.from(selectedCompanyIds));
-            showToast('Permissões salvas com sucesso!', 'success');
-            onClose();
-        } catch (e) {
-            showToast('Erro ao salvar permissões.', 'error');
-        } finally {
-            setIsSaving(false);
-        }
-    };
-
-    return (
-        <div className="fixed inset-0 bg-black/50 z-40 flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
-            <div className="bg-[var(--color-card)] rounded-lg shadow-xl w-full max-w-lg max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
-                <div className="p-4 border-b" style={{borderColor: 'var(--color-border)'}}>
-                    <h3 className="text-lg font-semibold">Gerenciar Acesso - {user.username}</h3>
-                    <p className="text-sm" style={{color: 'var(--color-text-secondary)'}}>Selecione as empresas que este usuário pode acessar.</p>
-                </div>
-                <div className="p-4 space-y-2 overflow-y-auto">
-                    {allCompanies.map(company => (
-                        <label key={company.id} className="flex items-center p-3 rounded-md cursor-pointer hover:bg-white/5" style={{backgroundColor: 'var(--color-background)'}}>
-                            <input
-                                type="checkbox"
-                                checked={selectedCompanyIds.has(company.id)}
-                                onChange={() => handleToggle(company.id)}
-                                className="h-5 w-5 rounded"
-                                style={{accentColor: 'var(--color-primary)'}}
-                            />
-                            <span className="ml-3 font-medium">{company.nome}</span>
-                        </label>
-                    ))}
-                </div>
-                <div className="p-4 border-t flex justify-end gap-2" style={{borderColor: 'var(--color-border)'}}>
-                    <button onClick={onClose} className="px-4 py-2 rounded-md" style={{backgroundColor: 'var(--color-border)'}}>Cancelar</button>
-                    <button onClick={handleSave} disabled={isSaving} className="btn-primary px-4 py-2 rounded-md">
-                        {isSaving ? <Spinner /> : 'Salvar'}
-                    </button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
 export const UserManagementTab: React.FC<{ showToast: (message: string, type: 'success' | 'error' | 'warning') => void; }> = ({ showToast }) => {
-    const { currentUser, adminResetPassword } = useAuth();
+    const { adminResetPassword } = useAuth();
     const [users, setUsers] = useState<User[]>([]);
-    const [allCompanies, setAllCompanies] = useState<Empresa[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     
@@ -87,17 +19,11 @@ export const UserManagementTab: React.FC<{ showToast: (message: string, type: 's
     const [password, setPassword] = useState('');
     const [role, setRole] = useState<UserRole>('user');
 
-    const [editingUser, setEditingUser] = useState<User | null>(null);
-
     const fetchUsers = useCallback(async () => {
         setIsLoading(true);
         try {
-            const [usersData, companiesData] = await Promise.all([
-                pocketbaseService.getAllUsers(),
-                pocketbaseService.getAllEmpresas()
-            ]);
+            const usersData = await pocketbaseService.getAllUsers();
             setUsers(usersData);
-            setAllCompanies(companiesData);
         } catch (error) {
             showToast('Erro ao carregar dados.', 'error');
         } finally {
@@ -146,12 +72,6 @@ export const UserManagementTab: React.FC<{ showToast: (message: string, type: 's
             showToast(error.message || 'Erro ao redefinir a senha.', 'error');
         }
     };
-    
-    const handleSavePermissions = async (userId: string, companyIds: string[]) => {
-        if (!currentUser) return;
-        await pocketbaseService.updateUserCompanyPermissions(userId, companyIds);
-        fetchUsers(); // Refresh user list to show updated data
-    };
 
     if (isLoading) {
         return <div className="flex justify-center items-center h-64"><Spinner /></div>;
@@ -159,19 +79,10 @@ export const UserManagementTab: React.FC<{ showToast: (message: string, type: 's
 
     return (
         <div className="animate-fade-in max-w-4xl mx-auto">
-            {editingUser && (
-                <PermissionModal 
-                    user={editingUser}
-                    allCompanies={allCompanies}
-                    onClose={() => setEditingUser(null)}
-                    onSave={handleSavePermissions}
-                    showToast={showToast}
-                />
-            )}
             <div className="flex justify-between items-center mb-6">
                 <div className="flex items-center gap-2">
                     <h2 className="text-2xl font-bold" style={{ color: 'var(--color-text)' }}>Gerenciamento de Usuários</h2>
-                    <HelpIcon text="Crie novos usuários e gerencie suas senhas e permissões de acesso às empresas." />
+                    <HelpIcon text="Crie novos usuários e gerencie suas senhas." />
                 </div>
                 <button onClick={() => setShowForm(prev => !prev)} className="btn-primary flex items-center justify-center gap-2">
                     <PlusIcon/> {showForm ? 'Cancelar' : 'Novo Usuário'}
@@ -221,14 +132,9 @@ export const UserManagementTab: React.FC<{ showToast: (message: string, type: 's
                                 <td className="p-4 capitalize">{user.role}</td>
                                 <td className="p-4 text-center">
                                     <div className="flex justify-center gap-2">
-                                        <button onClick={() => handleResetPassword(user)} className="px-3 py-1 rounded-md text-sm font-semibold" style={{backgroundColor: 'var(--color-border)', color: 'var(--color-text-secondary)'}}>
-                                            Redefinir Senha
+                                        <button onClick={() => handleResetPassword(user)} className="px-3 py-1 rounded-md text-sm font-semibold flex items-center gap-1" style={{backgroundColor: 'var(--color-border)', color: 'var(--color-text-secondary)'}}>
+                                            <KeyIcon className="w-4 h-4" /> Redefinir Senha
                                         </button>
-                                        {user.role === 'user' && (
-                                            <button onClick={() => setEditingUser(user)} className="px-3 py-1 rounded-md text-sm font-semibold flex items-center gap-1" style={{backgroundColor: 'var(--color-border)', color: 'var(--color-text-secondary)'}}>
-                                                <KeyIcon className="w-4 h-4" /> Permissões
-                                            </button>
-                                        )}
                                     </div>
                                 </td>
                             </tr>

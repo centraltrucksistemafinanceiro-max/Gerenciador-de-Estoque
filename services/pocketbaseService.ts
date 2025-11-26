@@ -418,7 +418,4 @@ export const pocketbaseService = {
     async adminResetUserPassword(targetUserId: string, newPassword: string): Promise<void> {
         await pb.collection('users').update(targetUserId, { password: newPassword, passwordConfirm: newPassword });
     },
-    async updateUserCompanyPermissions(targetUserId: string, companyIds: string[]): Promise<void> {
-        await pb.collection('users').update(targetUserId, { empresas: companyIds });
-    }
 };

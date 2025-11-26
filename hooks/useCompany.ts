@@ -46,13 +46,8 @@ export const CompanyProvider: React.FC<{ children: ReactNode }> = ({ children })
     useEffect(() => {
         if (!currentUser || isLoadingCompanies) return;
 
-        let accessibleCompanies: Empresa[];
-        if (currentUser.role === 'admin') {
-            accessibleCompanies = allCompanies;
-        } else {
-            const allowedIds = new Set(currentUser.empresas || []);
-            accessibleCompanies = allCompanies.filter(c => allowedIds.has(c.id));
-        }
+        // New Rule: All users can access all companies.
+        const accessibleCompanies = allCompanies;
         setCompanies(accessibleCompanies);
 
         try {
