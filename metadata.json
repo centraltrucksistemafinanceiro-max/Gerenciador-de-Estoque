@@ -1,0 +1,7 @@
+{
+  "name": "Gerenciador de Estoque 6",
+  "description": "Um sistema completo e moderno de gerenciamento de estoque, com funcionalidades de consulta, inventário, movimentação, cadastro, relatórios, personalização de tema e backup de dados.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
