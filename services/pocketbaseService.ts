@@ -20,11 +20,10 @@ export const pocketbaseService = {
         return pb.authStore.isValid;
     },
 
-    async login(username: string, password_hash: string): Promise<User | null> {
-        const authData = await pb.collection('users').authWithPassword<User>(username, password_hash);
-        // The authData.record already contains the full user model, including the 'role'.
-        // The extra authRefresh call was redundant and causing issues.
-        return authData.record;
+    async login(username: string, password: string): Promise<User | null> {
+        await pb.collection('users').authWithPassword<User>(username, password);
+        const refreshedRecord = await pb.collection('users').authRefresh<User>();
+        return refreshedRecord.record;
     },
 
     logout() {

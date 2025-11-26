@@ -26,7 +26,6 @@ import CompanySelector from './components/CompanySelector';
 import CompanySelectionScreen from './components/CompanySelectionScreen';
 import Spinner from './components/Spinner';
 
-
 import type { Tab, ToastMessage, UserRole } from './types';
 import { useAuth } from './hooks/useAuth';
 import { useCompany } from './hooks/useCompany';
@@ -85,6 +84,10 @@ export const App: React.FC = () => {
         if (isMobile || !navContainerRef.current || !tabsForMeasurementRef.current) return;
 
         const containerWidth = navContainerRef.current.offsetWidth;
+        
+        // Safety check: Don't calculate if the container has no width yet
+        if (containerWidth === 0) return;
+
         const moreButtonWidth = 70; // Estimate width for calculation
         const tabElements = Array.from(tabsForMeasurementRef.current.children) as HTMLElement[];
 
@@ -117,7 +120,8 @@ export const App: React.FC = () => {
         }
     };
 
-    updateTabs();
+    // Use a timeout to ensure the DOM is fully rendered before measuring
+    const timeoutId = setTimeout(updateTabs, 0);
 
     const resizeObserver = new ResizeObserver(updateTabs);
     if (navContainerRef.current) {
@@ -125,6 +129,7 @@ export const App: React.FC = () => {
     }
 
     return () => {
+        clearTimeout(timeoutId);
         resizeObserver.disconnect();
     };
   }, [allTabs, isMobile]);

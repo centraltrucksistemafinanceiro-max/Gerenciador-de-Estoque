@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import Spinner from './Spinner';
-import { PackageIcon } from './icons/Icon';
+import { PackageIcon, EyeIcon, EyeOffIcon } from './icons/Icon';
 
 const LoginScreen: React.FC = () => {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const { login } = useAuth();
@@ -51,12 +52,12 @@ const LoginScreen: React.FC = () => {
                             style={{ backgroundColor: 'var(--color-background)', color: 'var(--color-text)', borderColor: 'var(--color-border)' }}
                         />
                     </div>
-                    <div>
+                    <div className="relative">
                         <label htmlFor="password"className="block text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>Senha</label>
                         <input
                             id="password"
                             name="password"
-                            type="password"
+                            type={showPassword ? 'text' : 'password'}
                             autoComplete="current-password"
                             required
                             value={password}
@@ -64,6 +65,18 @@ const LoginScreen: React.FC = () => {
                             className="mt-1 block w-full px-3 py-2 border shadow-sm sm:text-sm"
                             style={{ backgroundColor: 'var(--color-background)', color: 'var(--color-text)', borderColor: 'var(--color-border)' }}
                         />
+                         <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute inset-y-0 right-0 top-6 pr-3 flex items-center text-sm leading-5"
+                            style={{ color: 'var(--color-text-secondary)' }}
+                        >
+                            {showPassword ? (
+                                <EyeOffIcon className="h-5 w-5" />
+                            ) : (
+                                <EyeIcon className="h-5 w-5" />
+                            )}
+                        </button>
                     </div>
 
                     {error && <p className="text-sm text-center text-red-400">{error}</p>}

@@ -6,7 +6,7 @@ interface AuthContextType {
     currentUser: User | null;
     isAuthenticated: boolean;
     isLoadingAuth: boolean;
-    login: (username: string, password_hash: string) => Promise<void>;
+    login: (username: string, password: string) => Promise<void>;
     logout: () => void;
     changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
     adminResetPassword: (targetUserId: string, newPassword: string) => Promise<void>;
@@ -20,16 +20,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [isLoadingAuth, setIsLoadingAuth] = useState(true);
 
     useEffect(() => {
-        // On initial load, check if there's a valid session
-        const user = pocketbaseService.getCurrentUser();
-        setCurrentUser(user);
-        setIsLoadingAuth(false);
+        const checkInitialState = async () => {
+            setIsLoadingAuth(true);
+            try {
+                const user = pocketbaseService.getCurrentUser();
+                setCurrentUser(user);
+            } catch (error) {
+                console.error("Failed to check initial state:", error);
+            } finally {
+                setIsLoadingAuth(false);
+            }
+        };
+        checkInitialState();
     }, []);
 
     const isAuthenticated = useMemo(() => !!currentUser && pocketbaseService.isAuthValid(), [currentUser]);
 
-    const login = useCallback(async (username: string, password_hash: string) => {
-        const user = await pocketbaseService.login(username, password_hash);
+    const login = useCallback(async (username: string, password: string) => {
+        const user = await pocketbaseService.login(username, password);
         setCurrentUser(user as User);
     }, []);
 
