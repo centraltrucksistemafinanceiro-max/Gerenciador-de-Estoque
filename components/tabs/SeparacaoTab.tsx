@@ -15,7 +15,7 @@ interface SeparacaoTabProps {
   scanTimestamp: number | null;
 }
 
-type ViewState = 'loading' | 'list' | 'create' | 'defineItems' | 'reviewItems' | 'picking' | 'delivery';
+type ViewState = 'loading' | 'list' | 'create' | 'defineItems' | 'picking' | 'delivery';
 
 type ParsedItem = { codigo: string; quantidade: number };
 type ValidatedItem = {
@@ -40,6 +40,9 @@ export const SeparacaoTab: React.FC<SeparacaoTabProps> = ({ empresaId, showToast
   const [pastedData, setPastedData] = useState('');
   const [validatedItems, setValidatedItems] = useState<ValidatedItem[]>([]);
   
+  // Picking state
+  const [manualItemCode, setManualItemCode] = useState('');
+
   // Delivery State
   const [nomeRecebedor, setNomeRecebedor] = useState('');
 
@@ -91,32 +94,20 @@ export const SeparacaoTab: React.FC<SeparacaoTabProps> = ({ empresaId, showToast
     }
   };
 
-  const handleProcessPastedData = async () => {
-    if (!pastedData.trim()) {
-      showToast('Cole os dados dos produtos.', 'warning');
-      return;
-    }
+  const processAndValidateItems = useCallback(async (itemsToProcess: ParsedItem[]) => {
     setIsProcessing(true);
-    const lines = pastedData.trim().split('\n');
-    const parsedItems: ParsedItem[] = lines.map(line => {
-        const parts = line.split(/\s+/); // Split by any whitespace
-        const codigo = parts[0]?.trim().toUpperCase() || '';
-        const quantidade = parseInt(parts[1]?.trim()) || 0;
-        return { codigo, quantidade };
-    }).filter(item => item.codigo && item.quantidade > 0);
-
-    const validationPromises = parsedItems.map(async (item): Promise<ValidatedItem> => {
+    const validationPromises = itemsToProcess.map(async (item): Promise<ValidatedItem> => {
       const produto = await pocketbaseService.findProdutoByCodigo(empresaId, item.codigo);
       let status: ValidatedItem['status'] = 'not_found';
-        if (produto) {
-            if (produto.status === 'inativo') {
-                status = 'not_found'; // Treat inactive as not found for picking purposes.
-            } else if (produto.quantidade < item.quantidade) {
-                status = 'insufficient_stock';
-            } else {
-                status = 'found';
-            }
+      if (produto) {
+        if (produto.status === 'inativo') {
+          status = 'not_found';
+        } else if (produto.quantidade < item.quantidade) {
+          status = 'insufficient_stock';
+        } else {
+          status = 'found';
         }
+      }
       return {
         status,
         produto: produto || undefined,
@@ -124,12 +115,48 @@ export const SeparacaoTab: React.FC<SeparacaoTabProps> = ({ empresaId, showToast
         codigoInput: item.codigo,
       };
     });
-
     const results = await Promise.all(validationPromises);
-    setValidatedItems(results);
-    setViewState('reviewItems');
+    setValidatedItems(prev => {
+        const newItemsMap = new Map<string, ValidatedItem>();
+        // Add previous items
+        prev.forEach(item => newItemsMap.set(item.codigoInput.toUpperCase(), item));
+        // Add new/updated items
+        results.forEach(item => newItemsMap.set(item.codigoInput.toUpperCase(), item));
+        return Array.from(newItemsMap.values());
+    });
     setIsProcessing(false);
+  }, [empresaId]);
+
+  const handleProcessPastedData = async () => {
+    if (!pastedData.trim()) {
+      showToast('Cole os dados dos produtos.', 'warning');
+      return;
+    }
+    const lines = pastedData.trim().split('\n');
+    const parsedItems: ParsedItem[] = lines.map(line => {
+        const parts = line.split(/\s+/);
+        const codigo = parts[0]?.trim().toUpperCase() || '';
+        const quantidade = parseInt(parts[1]?.trim()) || 1;
+        return { codigo, quantidade };
+    }).filter(item => item.codigo && item.quantidade > 0);
+    
+    await processAndValidateItems(parsedItems);
+    setPastedData(''); // Clear textarea
   };
+
+  const handleProcessSingleItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const codigo = (e.currentTarget.elements.namedItem('codigo') as HTMLInputElement).value;
+    const quantidade = parseInt((e.currentTarget.elements.namedItem('quantidade') as HTMLInputElement).value);
+    
+    if (!codigo || isNaN(quantidade) || quantidade <= 0) {
+        showToast('Preencha o código e a quantidade.', 'warning');
+        return;
+    }
+    await processAndValidateItems([{ codigo, quantidade }]);
+    (e.currentTarget as HTMLFormElement).reset();
+  };
+
   
   const handleConfirmItems = async () => {
       if (!activeSeparacao) return;
@@ -154,7 +181,7 @@ export const SeparacaoTab: React.FC<SeparacaoTabProps> = ({ empresaId, showToast
       setIsProcessing(true);
       try {
           await pocketbaseService.setSeparacaoItems(activeSeparacao.separacao.id, itemsToSet);
-          await handleSelectSeparacao(activeSeparacao.separacao.id); // Reload to get fresh data and move to picking
+          await handleSelectSeparacao(activeSeparacao.separacao.id); 
       } catch (error: any) {
           showToast(error.message || 'Erro ao salvar lista de itens.', 'error');
       } finally {
@@ -169,9 +196,14 @@ export const SeparacaoTab: React.FC<SeparacaoTabProps> = ({ empresaId, showToast
         if (data) {
             setActiveSeparacao(data);
             if (data.separacao.status === 'em andamento') {
-                setViewState('picking');
+                if (data.items.length === 0) {
+                    setValidatedItems([]); // Clear previous validation
+                    setViewState('defineItems');
+                } else {
+                    setViewState('picking');
+                }
             } else if (data.separacao.status === 'aguardando entrega') {
-                setNomeRecebedor(''); // Reset receiver name field
+                setNomeRecebedor('');
                 setViewState('delivery');
             } else { // Delivered
                 setNomeRecebedor(data.separacao.nome_recebedor || '');
@@ -192,16 +224,23 @@ export const SeparacaoTab: React.FC<SeparacaoTabProps> = ({ empresaId, showToast
     if (!activeSeparacao) return;
     setIsProcessing(true);
     try {
-        const updatedItem = await pocketbaseService.addItemToSeparacao(activeSeparacao.separacao.id, codigo);
+        // This service function now handles both updating and creating items
+        const {item: updatedItem, isNew } = await pocketbaseService.addItemToSeparacao(activeSeparacao.separacao.id, codigo);
+        
         if (updatedItem) {
             setActiveSeparacao(prev => {
                 if (!prev) return null;
-                const newItems = prev.items.map(i => i.id === updatedItem.id ? updatedItem : i);
+                let newItems;
+                if (isNew) {
+                    newItems = [...prev.items, updatedItem];
+                } else {
+                    newItems = prev.items.map(i => i.id === updatedItem.id ? updatedItem : i);
+                }
                 return { ...prev, items: newItems };
             });
             setHighlightedItemId(updatedItem.id);
             setTimeout(() => setHighlightedItemId(null), 700);
-            showToast(`+1 para '${updatedItem.produto_descricao}'.`, 'success');
+            showToast(`${isNew ? 'Novo item adicionado:' : '+1 para'} '${updatedItem.produto_descricao}'.`, 'success');
         }
     } catch (error: any) {
         showToast(error.message || 'Erro ao adicionar item.', 'error');
@@ -209,11 +248,21 @@ export const SeparacaoTab: React.FC<SeparacaoTabProps> = ({ empresaId, showToast
         setIsProcessing(false);
     }
   }, [activeSeparacao, showToast]);
+
+    const handleManualAddItemSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (manualItemCode.trim()) {
+            handleAddItemByScan(manualItemCode.trim());
+            setManualItemCode(''); // Clear input after adding
+        } else {
+            showToast('Por favor, digite um código.', 'warning');
+        }
+    };
   
   const handleUpdateItemQuantidade = async (itemId: string, newQuantity: number) => {
     if (!activeSeparacao) return;
     const item = activeSeparacao.items.find(i => i.id === itemId);
-    if (!item || newQuantity < 0 || newQuantity > item.quantidade_requerida) return;
+    if (!item || newQuantity < 0 ) return; // Allow exceeding required quantity for ad-hoc additions
 
     try {
         const updatedItem = await pocketbaseService.updateSeparacaoItemQuantidade(itemId, newQuantity);
@@ -336,62 +385,73 @@ export const SeparacaoTab: React.FC<SeparacaoTabProps> = ({ empresaId, showToast
     );
   }
   
-  if (viewState === 'defineItems' && activeSeparacao) {
-      return (
-          <div className="animate-fade-in max-w-2xl mx-auto">
-              <div className="flex items-center gap-4 mb-6">
-                 <button onClick={() => setViewState('create')} className="p-2 rounded-full hover:bg-gray-700"><ChevronLeftIcon/></button>
-                 <h2 className="text-2xl font-bold">Definir Itens para Separação</h2>
-              </div>
-              <div className="p-6 rounded-lg space-y-4 shadow-md" style={{ backgroundColor: 'var(--color-card)' }}>
-                  <p>Cole os dados da sua planilha. Formato: CÓDIGO (tab/espaço) QUANTIDADE por linha.</p>
-                  <textarea value={pastedData} onChange={e => setPastedData(e.target.value)} rows={10} placeholder="CÓDIGO1 10&#10;CÓDIGO2 5" className="w-full p-2 font-mono text-sm" style={{ backgroundColor: 'var(--color-background)' }} />
-                  <div className="pt-2"><button onClick={handleProcessPastedData} disabled={isProcessing} className="w-full btn-primary">{isProcessing ? <Spinner/> : 'Processar Lista'}</button></div>
-              </div>
-          </div>
-      )
-  }
-  
-  if (viewState === 'reviewItems' && activeSeparacao) {
+  if ((viewState === 'defineItems' || viewState === 'reviewItems') && activeSeparacao) {
       const itemsToAddCount = validatedItems.filter(i => i.status !== 'not_found').length;
 
       return (
           <div className="animate-fade-in max-w-4xl mx-auto">
               <div className="flex items-center gap-4 mb-6">
-                 <button onClick={() => setViewState('defineItems')} className="p-2 rounded-full hover:bg-gray-700"><ChevronLeftIcon/></button>
-                 <h2 className="text-2xl font-bold">Revisão da Lista de Coleta</h2>
+                 <button onClick={loadSeparacoes} className="p-2 rounded-full hover:bg-gray-700"><ChevronLeftIcon/></button>
+                 <h2 className="text-2xl font-bold">Definir Itens para Separação</h2>
               </div>
               <div className="p-6 rounded-lg space-y-4 shadow-md" style={{ backgroundColor: 'var(--color-card)' }}>
-                  <p>O sistema encontrou {validatedItems.filter(i => i.status !== 'not_found').length} de {validatedItems.length} produtos. Itens não encontrados ou inativos serão ignorados.</p>
                   
-                  <div className="max-h-80 overflow-y-auto border rounded-md" style={{borderColor: 'var(--color-border)'}}>
-                      <table className="w-full text-left">
-                        <thead className="sticky top-0" style={{backgroundColor: 'var(--color-background)'}}><tr><th className="p-2">Status</th><th className="p-2">Código</th><th className="p-2">Descrição</th><th className="p-2">Local</th><th className="p-2 text-center">Estoque</th><th className="p-2 text-center">Pedido</th></tr></thead>
-                        <tbody>
-                            {validatedItems.map((item, idx) => {
-                                let statusNode;
-                                switch(item.status) {
-                                    case 'found': statusNode = <span className="text-green-400 font-semibold">OK</span>; break;
-                                    case 'not_found': statusNode = <span className="text-red-400 font-semibold">NÃO ENCONTRADO</span>; break;
-                                    case 'insufficient_stock': statusNode = <span className="text-yellow-400 font-semibold">ESTOQUE BAIXO</span>; break;
-                                }
-                                return (
-                                <tr key={idx} className={`border-t ${item.status === 'not_found' ? 'opacity-60' : ''}`} style={{borderColor: 'var(--color-border)'}}>
-                                    <td className="p-2">{statusNode}</td>
-                                    <td className="p-2 font-mono">{item.codigoInput}</td>
-                                    <td className="p-2">{item.produto?.descricao || '-'}</td>
-                                    <td className="p-2 font-mono">{item.produto?.localizacao || '-'}</td>
-                                    <td className="p-2 text-center">{item.produto?.quantidade ?? '-'}</td>
-                                    <td className="p-2 text-center">{item.quantidadeRequerida}</td>
-                                </tr>
-                            )})}
-                        </tbody>
-                      </table>
+                  {/* Individual Item Form */}
+                  <form onSubmit={handleProcessSingleItem} className="flex flex-col sm:flex-row gap-2 items-end">
+                      <div className="flex-grow"><label className="text-sm" style={{color: 'var(--color-text-secondary)'}}>Código do Produto</label><input name="codigo" type="text" className="w-full p-2 mt-1" style={{ backgroundColor: 'var(--color-background)' }}/></div>
+                      <div className="w-24"><label className="text-sm" style={{color: 'var(--color-text-secondary)'}}>Quantidade</label><input name="quantidade" type="number" min="1" defaultValue="1" className="w-full p-2 mt-1" style={{ backgroundColor: 'var(--color-background)' }}/></div>
+                      <button type="submit" disabled={isProcessing} className="btn-primary h-10">Adicionar Item</button>
+                  </form>
+                  
+                  {/* Batch Paste Area */}
+                  <div className="border-t pt-4" style={{borderColor: 'var(--color-border)'}}>
+                    <p className="text-sm" style={{color: 'var(--color-text-secondary)'}}>Ou cole os dados da sua planilha. Formato: CÓDIGO (tab/espaço) QUANTIDADE por linha.</p>
+                    <textarea value={pastedData} onChange={e => setPastedData(e.target.value)} rows={5} placeholder="CÓDIGO1 10&#10;CÓDIGO2 5" className="w-full p-2 font-mono text-sm mt-2" style={{ backgroundColor: 'var(--color-background)' }} />
+                    <div className="flex justify-end mt-2">
+                        <button onClick={handleProcessPastedData} disabled={isProcessing} className="px-4 py-2 rounded-md font-semibold text-white transition-all text-sm" style={{ backgroundColor: 'var(--color-primary)'}}>
+                            {isProcessing && validatedItems.length === 0 ? <Spinner/> : 'Processar Lista Colada'}
+                        </button>
+                    </div>
                   </div>
-                  <div className="pt-2 flex justify-end"><button onClick={handleConfirmItems} disabled={isProcessing || itemsToAddCount === 0} className="btn-primary">{isProcessing ? <Spinner/> : `Iniciar Separação com ${itemsToAddCount} Itens`}</button></div>
+
+                  {/* Validated Items List */}
+                  {validatedItems.length > 0 && (
+                      <div className="border-t pt-4" style={{borderColor: 'var(--color-border)'}}>
+                        <h3 className="font-semibold mb-2">Lista de Coleta ({itemsToAddCount} válidos)</h3>
+                        <div className="max-h-60 overflow-y-auto border rounded-md" style={{borderColor: 'var(--color-border)'}}>
+                          <table className="w-full text-left text-sm">
+                            <thead className="sticky top-0" style={{backgroundColor: 'var(--color-background)'}}><tr><th className="p-2">Status</th><th className="p-2">Código</th><th className="p-2">Descrição</th><th className="p-2 text-center">Pedido</th><th className="p-2 text-center">Estoque</th></tr></thead>
+                            <tbody>
+                                {validatedItems.map((item, idx) => {
+                                    let statusNode;
+                                    switch(item.status) {
+                                        case 'found': statusNode = <span className="text-green-400 font-semibold">OK</span>; break;
+                                        case 'not_found': statusNode = <span className="text-red-400 font-semibold">NÃO ENCONTRADO</span>; break;
+                                        case 'insufficient_stock': statusNode = <span className="text-yellow-400 font-semibold">ESTOQUE BAIXO</span>; break;
+                                    }
+                                    return (
+                                    <tr key={idx} className={`border-t ${item.status === 'not_found' ? 'opacity-60' : ''}`} style={{borderColor: 'var(--color-border)'}}>
+                                        <td className="p-2">{statusNode}</td>
+                                        <td className="p-2 font-mono">{item.codigoInput}</td>
+                                        <td className="p-2">{item.produto?.descricao || '-'}</td>
+                                        <td className="p-2 text-center font-bold">{item.quantidadeRequerida}</td>
+                                        <td className="p-2 text-center">{item.produto?.quantidade ?? '-'}</td>
+                                    </tr>
+                                )})}
+                            </tbody>
+                          </table>
+                        </div>
+                        <div className="pt-4 flex justify-end">
+                            <button onClick={handleConfirmItems} disabled={isProcessing || itemsToAddCount === 0} className="btn-primary !text-base !font-bold !py-2">
+                                {isProcessing ? <Spinner/> : `Confirmar e Iniciar Separação`}
+                            </button>
+                        </div>
+                      </div>
+                  )}
+
               </div>
           </div>
-      );
+      )
   }
 
   if (viewState === 'picking' && activeSeparacao) {
@@ -399,13 +459,40 @@ export const SeparacaoTab: React.FC<SeparacaoTabProps> = ({ empresaId, showToast
     return (
       <div className="animate-fade-in">
           <div className="p-4 rounded-lg mb-6 shadow-md" style={{ backgroundColor: 'var(--color-card)' }}>
-             <div className="flex justify-between items-start">
-                <div className="flex items-center gap-2"><button onClick={loadSeparacoes} className="p-2 rounded-full hover:bg-gray-700"><ChevronLeftIcon/></button><div>
+             <div className="flex items-center gap-2 -ml-2">
+                <button onClick={loadSeparacoes} className="p-2 rounded-full hover:bg-gray-700"><ChevronLeftIcon/></button>
+                <div>
                     <h2 className="text-xl font-bold" style={{ color: 'var(--color-primary)' }}>Separando O.S.: {separacao.osNumero}</h2>
-                    <p>Cliente: {separacao.cliente}</p></div></div>
-                <button onClick={() => document.querySelector<HTMLButtonElement>('button[title="Ler QR Code"]')?.click()} className="btn-primary flex items-center gap-2"><QrCodeIcon/> Ler Item</button>
+                    <p>Cliente: {separacao.cliente}</p>
+                </div>
              </div>
           </div>
+
+          <div className="p-4 rounded-lg mb-6 shadow-md" style={{ backgroundColor: 'var(--color-card)', border: '1px solid var(--color-border)' }}>
+            <form onSubmit={handleManualAddItemSubmit} className="flex flex-col sm:flex-row gap-2">
+                <input 
+                    type="text" 
+                    value={manualItemCode} 
+                    onChange={(e) => setManualItemCode(e.target.value.toUpperCase())}
+                    placeholder="Digite ou leia o código do item"
+                    className="flex-grow px-4 py-2"
+                    style={{ backgroundColor: 'var(--color-background)', color: 'var(--color-text)', border: '1px solid var(--color-border)' }}
+                />
+                <button type="submit" className="btn-primary flex items-center justify-center gap-2" disabled={isProcessing}>
+                    <PlusIcon/> Adicionar
+                </button>
+                <button 
+                    type="button" 
+                    onClick={() => document.querySelector<HTMLButtonElement>('button[title="Ler QR Code"]')?.click()}
+                    className="p-2 flex items-center justify-center" 
+                    style={{ backgroundColor: 'var(--color-border)' }}
+                    title="Escanear Código"
+                >
+                    <QrCodeIcon className="w-5 h-5" />
+                </button>
+            </form>
+          </div>
+
           <div className="space-y-2">
             {sortedPickingItems.length > 0 ? sortedPickingItems.map(item => {
                 const isComplete = item.quantidade_separada >= item.quantidade_requerida;
@@ -434,7 +521,7 @@ export const SeparacaoTab: React.FC<SeparacaoTabProps> = ({ empresaId, showToast
                          <div className="flex items-center gap-2 rounded-md p-1" style={{backgroundColor: 'var(--color-background)'}}>
                             <button onClick={() => handleUpdateItemQuantidade(item.id, item.quantidade_separada - 1)} className="px-2 font-bold text-lg hover:bg-white/10 rounded-md" disabled={item.quantidade_separada <= 0}>-</button>
                             <span className="font-bold text-lg w-8 text-center">{item.quantidade_separada}</span>
-                            <button onClick={() => handleUpdateItemQuantidade(item.id, item.quantidade_separada + 1)} className="px-2 font-bold text-lg hover:bg-white/10 rounded-md" disabled={isComplete || isStockDepleted}>+</button>
+                            <button onClick={() => handleUpdateItemQuantidade(item.id, item.quantidade_separada + 1)} className="px-2 font-bold text-lg hover:bg-white/10 rounded-md" disabled={isStockDepleted}>+</button>
                         </div>
                        )}
                         <span className="text-lg" style={{color: 'var(--color-text-secondary)'}}>/</span>
@@ -517,7 +604,6 @@ export const SeparacaoTab: React.FC<SeparacaoTabProps> = ({ empresaId, showToast
                         </div>
                   </div>
               </div>
-
               {isDelivered ? (
                  <div className="no-print mt-6 p-4 rounded-lg text-center" style={{backgroundColor: 'var(--color-background)', border: `1px solid var(--color-border)`}}>
                     <div className="flex items-center justify-center gap-2 text-green-400">

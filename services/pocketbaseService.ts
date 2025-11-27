@@ -21,9 +21,8 @@ export const pocketbaseService = {
     },
 
     async login(username: string, password: string): Promise<User | null> {
-        await pb.collection('users').authWithPassword<User>(username, password);
-        const refreshedRecord = await pb.collection('users').authRefresh<User>();
-        return refreshedRecord.record;
+        const authData = await pb.collection('users').authWithPassword<User>(username, password);
+        return authData.record;
     },
 
     logout() {
@@ -125,7 +124,6 @@ export const pocketbaseService = {
     
     async getUniqueProductLocations(empresaId: string): Promise<string[]> {
         // FIX: Add a generic type to getFullList to correctly type the partial records.
-        // This resolves the error on the return statement where `[...locations]` was being inferred as `unknown[]`.
         const records = await pb.collection('produtos').getFullList<Pick<Produto, 'localizacao'>>({
             filter: `empresa = "${empresaId}" && localizacao != ""`,
             fields: 'localizacao',
@@ -276,20 +274,30 @@ export const pocketbaseService = {
         await Promise.all(createPromises);
     },
 
-    async addItemToSeparacao(separacaoId: string, produtoCodigo: string): Promise<SeparacaoItem | null> {
+    async addItemToSeparacao(separacaoId: string, produtoCodigo: string): Promise<{item: SeparacaoItem, isNew: boolean}> {
         const filter = `separacao = "${separacaoId}" && produto_codigo = "${produtoCodigo}"`;
         try {
             const item = await pb.collection('separacao_itens').getFirstListItem<SeparacaoItem>(filter);
-            const separacao = await pb.collection('separacoes').getOne(separacaoId);
-            const produto = await this.findProdutoByCodigo(separacao.empresa, produtoCodigo);
+            const updatedItem = await pb.collection('separacao_itens').update(item.id, { 'quantidade_separada+': 1 });
+            return { item: updatedItem, isNew: false };
 
-            if (!produto) throw new Error("Produto não encontrado no estoque.");
-            if (item.quantidade_separada >= produto.quantidade) throw new Error("Estoque insuficiente.");
-            if (item.quantidade_separada >= item.quantidade_requerida) throw new Error("Quantidade requerida já atingida.");
-
-            return pb.collection('separacao_itens').update(item.id, { 'quantidade_separada+': 1 });
         } catch (error: any) {
-            if (error.status === 404) throw new Error('Item não pertence a esta separação.');
+            if (error.status === 404) {
+                 const separacao = await pb.collection('separacoes').getOne<Separacao>(separacaoId);
+                 const produto = await this.findProdutoByCodigo(separacao.empresa, produtoCodigo);
+                 if (!produto) throw new Error("Produto não encontrado no estoque.");
+                 
+                 const newItem = await pb.collection('separacao_itens').create<SeparacaoItem>({
+                     separacao: separacaoId,
+                     produto_codigo: produto.codigo,
+                     produto_descricao: produto.descricao,
+                     localizacao: produto.localizacao,
+                     quantidade_requerida: 1, // Ad-hoc items have required = separated
+                     quantidade_separada: 1,
+                     quantidade_estoque_inicial: produto.quantidade
+                 });
+                 return { item: newItem, isNew: true };
+            }
             throw error;
         }
     },
