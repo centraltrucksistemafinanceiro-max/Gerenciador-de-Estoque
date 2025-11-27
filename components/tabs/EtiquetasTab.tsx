@@ -135,8 +135,8 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
     if (value === '') {
         setQuantidadeParaAdicionar('');
     } else {
-        const num = parseInt(value, 10);
-        if (!isNaN(num) && num >= 0) {
+        const num = parseInt(value.replace(/[^0-9]/g, ''), 10);
+        if (!isNaN(num)) {
             setQuantidadeParaAdicionar(num);
         }
     }
@@ -198,7 +198,9 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
                       <label htmlFor="quantidadeParaAdicionar" className="block mb-1 font-semibold">Qtd. de Etiquetas</label>
                       <input
                         id="quantidadeParaAdicionar"
-                        type="number"
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
                         value={quantidadeParaAdicionar}
                         onChange={handleQuantidadeChange}
                         className="w-full px-4 py-2"

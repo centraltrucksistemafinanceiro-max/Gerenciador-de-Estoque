@@ -130,6 +130,7 @@ export const pocketbaseService = {
         });
         // FIX: When using `fields`, PocketBase SDK may return properties as `unknown`.
         // Explicitly converting `r.localizacao` to a string ensures type safety.
+        // FIX: Type 'unknown' is not assignable to type 'string'. Explicitly cast to string.
         const locations = new Set(records.map(r => String(r.localizacao).trim()));
         return [...locations].sort();
     },

@@ -186,7 +186,9 @@ export const MovimentacaoTab: React.FC<MovimentacaoTabProps> = ({ empresaId, sho
                 <label htmlFor="quantidade" className="block mb-2 font-semibold">Quantidade</label>
                 <input
                   id="quantidade"
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   value={quantidade}
                   onChange={handleQuantidadeChange}
                   className="w-full px-4 py-2"
