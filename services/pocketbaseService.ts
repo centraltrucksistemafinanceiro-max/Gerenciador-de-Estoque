@@ -244,29 +244,65 @@ export const pocketbaseService = {
     },
 
     async importBackup(data: BackupData, importerUserId: string): Promise<void> {
-        const collections: (keyof BackupData)[] = ['empresas', 'produtos', 'movimentacoes', 'separacoes', 'separacao_itens', 'contagens', 'contagem_itens'];
-        
-        for (let i = collections.length - 1; i >= 0; i--) {
-            const collectionName = collections[i];
+        // Phase 1: Clear all existing data in reverse relational order
+        const collectionsToDelete: (keyof Omit<BackupData, 'users'>)[] = ['separacao_itens', 'contagem_itens', 'movimentacoes', 'produtos', 'separacoes', 'contagens', 'empresas'];
+        for (const collectionName of collectionsToDelete) {
             const records = await pb.collection(collectionName).getFullList({ fields: 'id' });
             const deletePromises = records.map(r => pb.collection(collectionName).delete(r.id));
             await Promise.all(deletePromises);
         }
 
-        for (const collectionName of collections) {
-            const recordsToImport = (data as any)[collectionName];
-            if (recordsToImport && recordsToImport.length > 0) {
-                 for(const record of recordsToImport) {
-                    const { id, collectionId, collectionName: cName, created, updated, expand, ...createData } = record;
-                    
-                    // Assign the record to the user performing the import
-                    if ('usuario' in createData) {
-                        createData.usuario = importerUserId;
-                    }
+        // Phase 2: Create new records and map old IDs to new IDs
+        const idMap: { [collection: string]: { [oldId: string]: string } } = {};
 
-                    await pb.collection(collectionName).create(createData);
-                 }
+        const importCollection = async (collectionName: keyof Omit<BackupData, 'users'>, relations: { [key: string]: keyof BackupData }) => {
+            idMap[collectionName] = {};
+            const recordsToImport = data[collectionName] || [];
+
+            for (const record of recordsToImport as any[]) {
+                const { id: oldId, collectionId, collectionName: cName, created, updated, expand, ...createData } = record;
+
+                // Remap relational fields
+                for (const field in relations) {
+                    if (createData[field]) {
+                        const relatedCollection = relations[field];
+                        const oldRelatedId = createData[field];
+                        if (idMap[relatedCollection] && idMap[relatedCollection][oldRelatedId]) {
+                            createData[field] = idMap[relatedCollection][oldRelatedId];
+                        } else {
+                            console.warn(`Could not find new ID for relation ${field} -> ${relatedCollection} with old ID ${oldRelatedId}. Setting to null.`);
+                            createData[field] = null;
+                        }
+                    }
+                }
+
+                // Always assign the current user if a 'usuario' field exists
+                if ('usuario' in createData) {
+                    createData.usuario = importerUserId;
+                }
+
+                try {
+                    const newRecord = await pb.collection(collectionName).create(createData);
+                    idMap[collectionName][oldId] = newRecord.id;
+                } catch (e: any) {
+                    console.error(`Failed to import record into ${collectionName}:`, createData, e.response || e);
+                    throw new Error(`Falha ao importar um registro para a coleção "${collectionName}". A importação foi interrompida.`);
+                }
             }
+        };
+        
+        // Phase 3: Execute imports in relational order (parents first)
+        try {
+            await importCollection('empresas', {});
+            await importCollection('produtos', { empresa: 'empresas' });
+            await importCollection('movimentacoes', { empresa: 'empresas' }); // 'usuario' is handled separately
+            await importCollection('separacoes', { empresa: 'empresas' });
+            await importCollection('separacao_itens', { separacao: 'separacoes' });
+            await importCollection('contagens', { empresa: 'empresas' });
+            await importCollection('contagem_itens', { contagem: 'contagens' });
+        } catch (error) {
+            // Rethrow the error to be caught by the component
+            throw error;
         }
     },
 
