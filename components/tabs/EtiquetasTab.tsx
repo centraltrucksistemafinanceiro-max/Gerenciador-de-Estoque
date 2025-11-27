@@ -199,7 +199,6 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
                       <input
                         id="quantidadeParaAdicionar"
                         type="number"
-                        min="1"
                         value={quantidadeParaAdicionar}
                         onChange={handleQuantidadeChange}
                         className="w-full px-4 py-2"

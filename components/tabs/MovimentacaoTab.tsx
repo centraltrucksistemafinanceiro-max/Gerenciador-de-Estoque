@@ -120,7 +120,7 @@ export const MovimentacaoTab: React.FC<MovimentacaoTabProps> = ({ empresaId, sho
         setQuantidade('');
     } else {
         const num = parseInt(value, 10);
-        if (!isNaN(num) && num >= 0) { // Allow 0 to be typed on the way to 10
+        if (!isNaN(num) && num >= 0) {
             setQuantidade(num);
         }
     }
@@ -187,7 +187,6 @@ export const MovimentacaoTab: React.FC<MovimentacaoTabProps> = ({ empresaId, sho
                 <input
                   id="quantidade"
                   type="number"
-                  min="1"
                   value={quantidade}
                   onChange={handleQuantidadeChange}
                   className="w-full px-4 py-2"

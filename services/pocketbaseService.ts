@@ -123,12 +123,13 @@ export const pocketbaseService = {
     },
     
     async getUniqueProductLocations(empresaId: string): Promise<string[]> {
-        // FIX: Add a generic type to getFullList to correctly type the partial records.
         const records = await pb.collection('produtos').getFullList<Pick<Produto, 'localizacao'>>({
             filter: `empresa = "${empresaId}" && localizacao != ""`,
             fields: 'localizacao',
         });
-        const locations = new Set(records.map(r => r.localizacao.trim()));
+        // FIX: Explicitly type the result of the map to ensure a string array is created,
+        // resolving an issue where the type was being inferred as `any[]` or `unknown[]`.
+        const locations = new Set(records.map((r): string => r.localizacao.trim()));
         return [...locations].sort();
     },
 
