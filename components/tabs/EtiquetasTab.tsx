@@ -21,7 +21,7 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
   const [isLoading, setIsLoading] = useState(false);
   
   // Queue and generation state
-  const [quantidadeParaAdicionar, setQuantidadeParaAdicionar] = useState<number>(1);
+  const [quantidadeParaAdicionar, setQuantidadeParaAdicionar] = useState<number | ''>(1);
   const [filaImpressao, setFilaImpressao] = useState<ProdutoParaImpressao[]>([]);
   const [etiquetasGeradas, setEtiquetasGeradas] = useState<Produto[]>([]);
   
@@ -74,8 +74,10 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
   
   const handleAdicionarAFila = () => {
     if (!produtoEncontrado) return;
-    if (quantidadeParaAdicionar <= 0) {
-        showToast('A quantidade deve ser maior que zero.', 'warning');
+
+    const quantNum = Number(quantidadeParaAdicionar);
+    if (isNaN(quantNum) || quantNum <= 0) {
+        showToast('A quantidade de etiquetas deve ser um número maior que zero.', 'warning');
         return;
     }
 
@@ -84,14 +86,14 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
       
       if (itemExistenteIndex > -1) {
         const novaFila = [...prevFila];
-        novaFila[itemExistenteIndex].quantidade += quantidadeParaAdicionar;
+        novaFila[itemExistenteIndex].quantidade += quantNum;
         return novaFila;
       } else {
-        return [...prevFila, { produto: produtoEncontrado, quantidade: quantidadeParaAdicionar }];
+        return [...prevFila, { produto: produtoEncontrado, quantidade: quantNum }];
       }
     });
 
-    showToast(`${quantidadeParaAdicionar} etiqueta(s) para "${produtoEncontrado.descricao}" adicionada(s) à fila.`, 'success');
+    showToast(`${quantNum} etiqueta(s) para "${produtoEncontrado.descricao}" adicionada(s) à fila.`, 'success');
     resetSearch();
   };
 
@@ -126,6 +128,18 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
     setEtiquetasGeradas([]);
     setFilaImpressao([]);
     resetSearch();
+  };
+  
+  const handleQuantidadeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    if (value === '') {
+        setQuantidadeParaAdicionar('');
+    } else {
+        const num = parseInt(value, 10);
+        if (!isNaN(num) && num >= 0) {
+            setQuantidadeParaAdicionar(num);
+        }
+    }
   };
 
   const totalEtiquetasNaFila = useMemo(() => filaImpressao.reduce((sum, item) => sum + item.quantidade, 0), [filaImpressao]);
@@ -187,7 +201,7 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
                         type="number"
                         min="1"
                         value={quantidadeParaAdicionar}
-                        onChange={(e) => setQuantidadeParaAdicionar(Math.max(1, parseInt(e.target.value) || 1))}
+                        onChange={handleQuantidadeChange}
                         className="w-full px-4 py-2"
                         style={{ backgroundColor: 'var(--color-background)', color: 'var(--color-text)', border: '1px solid var(--color-border)' }}
                       />
@@ -252,7 +266,7 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
               {Array.from({ length: Math.ceil(etiquetasGeradas.length / selectedPreset.labelsPerRow) }).map((_, rowIndex) => (
                 <div key={rowIndex} className="flex flex-row" style={{ gap: '5mm', marginBottom: '1mm', width: `${containerWidth}mm` }}>
                   {etiquetasGeradas.slice(rowIndex * selectedPreset.labelsPerRow, (rowIndex + 1) * selectedPreset.labelsPerRow).map((produto, labelIndex) => {
-                    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(produto.codigo)}&qzone=1&margin=0`;
+                    const qrCodeUrl = `https://sistemaB.fs-sistema.cloud/public-product-view.html?id=${produto.id}`;
                     return (
                         <div key={`${produto.id}-${rowIndex}-${labelIndex}`} className="text-black bg-white flex flex-col text-center font-mono box-border justify-between"
                             style={{
@@ -265,7 +279,7 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
                             }}>
                             
                             <div className="flex flex-col items-center">
-                                <img src={qrCodeUrl} alt={`QR Code for ${produto.codigo}`} style={{ width: `${selectedPreset.qrCodeSize}mm`, height: `${selectedPreset.qrCodeSize}mm` }}/>
+                                <img src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrCodeUrl)}&qzone=1&margin=0`} alt={`QR Code for ${produto.codigo}`} style={{ width: `${selectedPreset.qrCodeSize}mm`, height: `${selectedPreset.qrCodeSize}mm` }}/>
                                 <p className="leading-tight mt-1" style={{ fontSize: `${selectedPreset.codeFontSize}pt`, margin: 0 }}>{produto.codigo}</p>
                             </div>
 

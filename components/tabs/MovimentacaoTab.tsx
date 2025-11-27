@@ -21,7 +21,7 @@ export const MovimentacaoTab: React.FC<MovimentacaoTabProps> = ({ empresaId, sho
   const [notFound, setNotFound] = useState(false);
   
   const [tipo, setTipo] = useState<MovimentacaoTipo>('entrada');
-  const [quantidade, setQuantidade] = useState(1);
+  const [quantidade, setQuantidade] = useState<number | ''>(1);
   const [isProcessing, setIsProcessing] = useState(false);
 
   const resetForm = () => {
@@ -78,18 +78,21 @@ export const MovimentacaoTab: React.FC<MovimentacaoTabProps> = ({ empresaId, sho
   const handleMovimentacao = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!produto || produto.status === 'inativo' || !currentUser) return;
-    if (quantidade <= 0) {
-      showToast('A quantidade deve ser maior que zero.', 'warning');
+
+    const quantNum = Number(quantidade);
+    if (isNaN(quantNum) || quantNum <= 0) {
+      showToast('A quantidade deve ser um número maior que zero.', 'warning');
       return;
     }
-    if (tipo === 'saida' && quantidade > produto.quantidade) {
+
+    if (tipo === 'saida' && quantNum > produto.quantidade) {
       showToast('A quantidade de saída não pode ser maior que o estoque atual.', 'error');
       return;
     }
 
     setIsProcessing(true);
     try {
-      const novaQuantidade = tipo === 'entrada' ? produto.quantidade + quantidade : produto.quantidade - quantidade;
+      const novaQuantidade = tipo === 'entrada' ? produto.quantidade + quantNum : produto.quantidade - quantNum;
       
       await pocketbaseService.updateQuantidadeProduto(produto.id, novaQuantidade);
       
@@ -98,7 +101,7 @@ export const MovimentacaoTab: React.FC<MovimentacaoTabProps> = ({ empresaId, sho
         produto_codigo: produto.codigo,
         produto_descricao: produto.descricao,
         tipo,
-        quantidade,
+        quantidade: quantNum,
         usuario: currentUser.id
       });
 
@@ -108,6 +111,18 @@ export const MovimentacaoTab: React.FC<MovimentacaoTabProps> = ({ empresaId, sho
       showToast('Erro ao registrar movimentação.', 'error');
     } finally {
       setIsProcessing(false);
+    }
+  };
+  
+  const handleQuantidadeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    if (value === '') {
+        setQuantidade('');
+    } else {
+        const num = parseInt(value, 10);
+        if (!isNaN(num) && num >= 0) { // Allow 0 to be typed on the way to 10
+            setQuantidade(num);
+        }
     }
   };
 
@@ -174,7 +189,7 @@ export const MovimentacaoTab: React.FC<MovimentacaoTabProps> = ({ empresaId, sho
                   type="number"
                   min="1"
                   value={quantidade}
-                  onChange={(e) => setQuantidade(Math.max(1, parseInt(e.target.value) || 1))}
+                  onChange={handleQuantidadeChange}
                   className="w-full px-4 py-2"
                   style={{ backgroundColor: 'var(--color-background)', color: 'var(--color-text)', border: '1px solid var(--color-border)' }}
                 />
