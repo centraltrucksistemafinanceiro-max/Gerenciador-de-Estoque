@@ -124,12 +124,12 @@ export const pocketbaseService = {
     },
     
     async getUniqueProductLocations(empresaId: string): Promise<string[]> {
-        const records = await pb.collection('produtos').getFullList<{ localizacao: string }>({
+        const records = await pb.collection('produtos').getFullList({
             filter: `empresa = "${empresaId}" && localizacao != ""`,
             fields: 'localizacao',
         });
-        // FIX: Explicitly cast `r.localizacao` to a string. When using the `fields` option, the PocketBase SDK may not correctly infer the type, leading to a TypeScript error where `r.localizacao` is treated as `unknown`.
-        const locations = new Set(records.map(r => (r.localizacao as string).trim()));
+        // FIX: The pocketbase SDK returns partial records with `unknown` field types. Explicitly convert to string before processing.
+        const locations = new Set(records.map(r => String(r.localizacao).trim()));
         return [...locations].sort();
     },
 
@@ -158,8 +158,6 @@ export const pocketbaseService = {
     },
     
     async validarProdutosEmLote(empresaId: string, produtosParaValidar: Array<{codigo: string}>): Promise<any[]> {
-        // This is a complex operation on the frontend, let's keep it mostly client-side for now
-        // to avoid too many API calls. We'll fetch all existing codes once.
         const allExistingProducts = await this.getAllProdutos(empresaId, true);
         const allExistingCodes = new Set(allExistingProducts.flatMap(p => [p.codigo.toLowerCase(), ...p.codigos_alternativos.map(c => c.toLowerCase())]));
         const codesInThisBatch = new Set<string>();
@@ -185,7 +183,6 @@ export const pocketbaseService = {
 
     async cadastrarProdutosEmLote(empresaId: string, novosProdutos: any[], userId: string): Promise<{ criados: number, ignorados: number }> {
         let criados = 0;
-        // In a real scenario, you'd use a transactional API, but PocketBase requires this one-by-one
         for (const p of novosProdutos) {
             try {
                 await this.cadastrarProduto({
@@ -240,18 +237,15 @@ export const pocketbaseService = {
         
         for (const collectionName of collections) {
              (backupData[collectionName] as any) = await pb.collection(collectionName).getFullList({
-                // Don't export sensitive fields for users
                 fields: collectionName === 'users' ? 'id,username,role,created,updated' : undefined
             });
         }
         return backupData as BackupData;
     },
 
-    async importBackup(data: BackupData): Promise<void> {
+    async importBackup(data: BackupData, importerUserId: string): Promise<void> {
         const collections: (keyof BackupData)[] = ['empresas', 'produtos', 'movimentacoes', 'separacoes', 'separacao_itens', 'contagens', 'contagem_itens'];
         
-        // This is a dangerous operation. Order matters due to relations.
-        // It's safer to delete in reverse order of creation.
         for (let i = collections.length - 1; i >= 0; i--) {
             const collectionName = collections[i];
             const records = await pb.collection(collectionName).getFullList({ fields: 'id' });
@@ -259,13 +253,17 @@ export const pocketbaseService = {
             await Promise.all(deletePromises);
         }
 
-        // Now import in order
         for (const collectionName of collections) {
             const recordsToImport = (data as any)[collectionName];
             if (recordsToImport && recordsToImport.length > 0) {
                  for(const record of recordsToImport) {
-                    // PocketBase doesn't allow setting ID on create
                     const { id, collectionId, collectionName: cName, created, updated, expand, ...createData } = record;
+                    
+                    // Assign the record to the user performing the import
+                    if ('usuario' in createData) {
+                        createData.usuario = importerUserId;
+                    }
+
                     await pb.collection(collectionName).create(createData);
                  }
             }
@@ -280,7 +278,7 @@ export const pocketbaseService = {
     async getSeparacoes(empresaId: string): Promise<Separacao[]> {
         return pb.collection('separacoes').getFullList<Separacao>({
             filter: `empresa = "${empresaId}"`,
-            sort: '+status,-created' // Sort by status first, then newest
+            sort: '+status,-created'
         });
     },
 
@@ -293,12 +291,10 @@ export const pocketbaseService = {
     },
     
     async setSeparacaoItems(separacaoId: string, items: Omit<SeparacaoItem, 'id'|'collectionId'|'collectionName'|'created'|'updated'>[]): Promise<void> {
-        // Clear existing items
         const existingItems = await pb.collection('separacao_itens').getFullList({ filter: `separacao = "${separacaoId}"`, fields: 'id' });
         const deletePromises = existingItems.map(item => pb.collection('separacao_itens').delete(item.id));
         await Promise.all(deletePromises);
 
-        // Add new items
         const createPromises = items.map(item => pb.collection('separacao_itens').create(item));
         await Promise.all(createPromises);
     },
@@ -329,8 +325,6 @@ export const pocketbaseService = {
         const { separacao, items } = await this.getSeparacaoComItens(separacaoId);
         if (separacao.status !== 'em andamento') throw new Error("Separação já foi finalizada.");
         
-        // This should be a transaction, but PocketBase doesn't support it in JS SDK.
-        // Doing it step by step.
         for (const item of items) {
             if (item.quantidade_separada > 0) {
                 const produto = await this.findProdutoByCodigo(separacao.empresa, item.produto_codigo);

@@ -4,12 +4,14 @@ import type { BackupData } from '../../types';
 import Spinner from '../Spinner';
 import { DownloadIcon, UploadIcon } from '../icons/Icon';
 import HelpIcon from '../HelpIcon';
+import { useAuth } from '../../hooks/useAuth';
 
 interface BackupTabProps {
   showToast: (message: string, type: 'success' | 'error' | 'warning') => void;
 }
 
 export const BackupTab: React.FC<BackupTabProps> = ({ showToast }) => {
+  const { currentUser } = useAuth();
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -56,13 +58,17 @@ export const BackupTab: React.FC<BackupTabProps> = ({ showToast }) => {
           throw new Error('Arquivo de backup inválido ou corrompido.');
         }
         
+        if (!currentUser) {
+            throw new Error('Usuário não autenticado. Não é possível importar.');
+        }
+
         const confirmed = window.confirm(
             'ATENÇÃO: Importar este backup substituirá TODOS os dados atuais no servidor. Esta ação não pode ser desfeita. Deseja continuar?'
         );
 
         if (confirmed) {
             setIsImporting(true);
-            await pocketbaseService.importBackup(data);
+            await pocketbaseService.importBackup(data, currentUser.id);
             showToast('Backup importado com sucesso! A aplicação será recarregada para exibir os novos dados.', 'success');
             setTimeout(() => {
                 window.location.reload();
