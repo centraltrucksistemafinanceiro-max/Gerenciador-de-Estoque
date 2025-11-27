@@ -142,7 +142,7 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
             position: absolute; 
             left: 3mm; 
             top: 0;
-            transform: scale(1.3);
+            transform: scale(1.1);
             transform-origin: top left;
           }
           .no-print { display: none !important; }
