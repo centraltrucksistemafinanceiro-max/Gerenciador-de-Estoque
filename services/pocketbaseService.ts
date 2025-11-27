@@ -20,6 +20,7 @@ export const pocketbaseService = {
         return pb.authStore.isValid;
     },
 
+    // FIX: Removed unnecessary authRefresh call. The record is available directly from authWithPassword.
     async login(username: string, password: string): Promise<User | null> {
         const authData = await pb.collection('users').authWithPassword<User>(username, password);
         return authData.record;
@@ -127,9 +128,9 @@ export const pocketbaseService = {
             filter: `empresa = "${empresaId}" && localizacao != ""`,
             fields: 'localizacao',
         });
-        // FIX: Explicitly type the result of the map to ensure a string array is created,
-        // resolving an issue where the type was being inferred as `any[]` or `unknown[]`.
-        const locations = new Set(records.map((r): string => r.localizacao.trim()));
+        // FIX: When using `fields`, PocketBase SDK may return properties as `unknown`.
+        // Explicitly converting `r.localizacao` to a string ensures type safety.
+        const locations = new Set(records.map(r => String(r.localizacao).trim()));
         return [...locations].sort();
     },
 

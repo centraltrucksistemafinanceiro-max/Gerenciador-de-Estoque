@@ -146,15 +146,16 @@ export const SeparacaoTab: React.FC<SeparacaoTabProps> = ({ empresaId, showToast
 
   const handleProcessSingleItem = async (e: React.FormEvent) => {
     e.preventDefault();
-    const codigo = (e.currentTarget.elements.namedItem('codigo') as HTMLInputElement).value;
-    const quantidade = parseInt((e.currentTarget.elements.namedItem('quantidade') as HTMLInputElement).value);
+    const form = e.currentTarget as HTMLFormElement; // Store form reference
+    const codigo = (form.elements.namedItem('codigo') as HTMLInputElement).value;
+    const quantidade = parseInt((form.elements.namedItem('quantidade') as HTMLInputElement).value);
     
     if (!codigo || isNaN(quantidade) || quantidade <= 0) {
         showToast('Preencha o código e a quantidade.', 'warning');
         return;
     }
     await processAndValidateItems([{ codigo, quantidade }]);
-    (e.currentTarget as HTMLFormElement).reset();
+    form.reset();
   };
 
   
@@ -168,7 +169,7 @@ export const SeparacaoTab: React.FC<SeparacaoTabProps> = ({ empresaId, showToast
             produto_descricao: item.produto!.descricao,
             localizacao: item.produto!.localizacao,
             quantidade_requerida: item.quantidadeRequerida,
-            quantidade_estoque_inicial: item.produto!.quantidade,
+            quantidade_estoque_inicial: item.produto!.quantidade, // FIX: Include required field
             quantidade_separada: 0,
             separacao: activeSeparacao.separacao.id
         }));

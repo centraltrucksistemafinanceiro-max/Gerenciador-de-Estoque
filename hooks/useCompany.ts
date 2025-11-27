@@ -14,67 +14,10 @@ interface CompanyContextType {
 const CompanyContext = createContext<CompanyContextType | undefined>(undefined);
 
 export const CompanyProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-    const { currentUser, updateUserInSession } = useAuth();
-    const [allCompanies, setAllCompanies] = useState<Empresa[]>([]);
+    const { currentUser } = useAuth();
     const [companies, setCompanies] = useState<Empresa[]>([]);
     const [currentCompany, setCurrentCompany] = useState<Empresa | null>(null);
     const [isLoadingCompanies, setIsLoadingCompanies] = useState(true);
-
-    const refreshCompanies = useCallback(async () => {
-        setIsLoadingCompanies(true);
-        try {
-            const data = await pocketbaseService.getAllEmpresas();
-            setAllCompanies(data);
-        } catch (error) {
-            console.error("Failed to fetch companies", error);
-        } finally {
-            setIsLoadingCompanies(false);
-        }
-    }, []);
-    
-    useEffect(() => {
-        if (currentUser) {
-            refreshCompanies();
-        } else {
-            setAllCompanies([]);
-            setCompanies([]);
-            setCurrentCompany(null);
-            setIsLoadingCompanies(false);
-        }
-    }, [currentUser, refreshCompanies]);
-    
-    useEffect(() => {
-        if (!currentUser || isLoadingCompanies) return;
-
-        // New Rule: All users can access all companies.
-        const accessibleCompanies = allCompanies;
-        setCompanies(accessibleCompanies);
-
-        try {
-            const storedCompanyId = sessionStorage.getItem('currentCompanyId');
-            if (storedCompanyId) {
-                const company = accessibleCompanies.find(c => c.id === storedCompanyId);
-                
-                if (company) {
-                    setCurrentCompany(company);
-                } else if (accessibleCompanies.length > 0) {
-                    setCurrentCompany(accessibleCompanies[0]);
-                    sessionStorage.setItem('currentCompanyId', accessibleCompanies[0].id);
-                } else {
-                    setCurrentCompany(null);
-                    sessionStorage.removeItem('currentCompanyId');
-                }
-            } else if (accessibleCompanies.length > 0) {
-                setCurrentCompany(accessibleCompanies[0]);
-                sessionStorage.setItem('currentCompanyId', accessibleCompanies[0].id);
-            } else {
-                setCurrentCompany(null);
-            }
-        } catch {
-            setCurrentCompany(accessibleCompanies.length > 0 ? accessibleCompanies[0] : null);
-        }
-    }, [allCompanies, isLoadingCompanies, currentUser, updateUserInSession]);
-
 
     const selectCompany = useCallback((company: Empresa | null) => {
         setCurrentCompany(company);
@@ -84,6 +27,47 @@ export const CompanyProvider: React.FC<{ children: ReactNode }> = ({ children })
             sessionStorage.removeItem('currentCompanyId');
         }
     }, []);
+
+    const loadCompanies = useCallback(async () => {
+        if (!currentUser) {
+            setCompanies([]);
+            selectCompany(null);
+            setIsLoadingCompanies(false);
+            return;
+        }
+
+        setIsLoadingCompanies(true);
+        try {
+            const allCompanies = await pocketbaseService.getAllEmpresas();
+            setCompanies(allCompanies);
+
+            const storedCompanyId = sessionStorage.getItem('currentCompanyId');
+            
+            const companyToSelect = 
+                allCompanies.find(c => c.id === storedCompanyId) || // Try to find the stored one
+                allCompanies[0] || // Or default to the first one
+                null; // Or null if no companies exist
+
+            // The selectCompany function handles setting state and sessionStorage
+            selectCompany(companyToSelect);
+
+        } catch (error) {
+            console.error("Failed to fetch companies", error);
+            setCompanies([]);
+            selectCompany(null);
+        } finally {
+            setIsLoadingCompanies(false);
+        }
+    }, [currentUser, selectCompany]);
+
+    useEffect(() => {
+        loadCompanies();
+    }, [loadCompanies]);
+
+    const refreshCompanies = useCallback(async () => {
+        // Just re-run the loading logic
+        await loadCompanies();
+    }, [loadCompanies]);
 
     const value = useMemo(() => ({ companies, currentCompany, isLoadingCompanies, selectCompany, refreshCompanies }), [companies, currentCompany, isLoadingCompanies, selectCompany, refreshCompanies]);
 
