@@ -48,6 +48,7 @@ export const App: React.FC = () => {
   const navContainerRef = useRef<HTMLDivElement>(null);
   const tabsForMeasurementRef = useRef<HTMLDivElement>(null);
   const moreButtonRef = useRef<HTMLButtonElement>(null);
+  const navTabsContainerRef = useRef<HTMLDivElement>(null); // Ref for the direct container of tabs
 
   const allTabs = useMemo(() => {
     const tabs: { id: Tab; label: string; roles: UserRole[]; icon: React.ReactElement<IconProps> }[] = [
@@ -72,6 +73,13 @@ export const App: React.FC = () => {
 
   const [mainTabs, setMainTabs] = useState(allTabs);
   const [moreTabs, setMoreTabs] = useState<(typeof allTabs)[number][]>([]);
+  
+  // State for the animated indicator
+  const [indicatorStyle, setIndicatorStyle] = useState({ left: 0, width: 0, opacity: 0 });
+
+  // FIX: Moved isMoreMenuActive declaration before its usage in useLayoutEffect.
+  const isMoreMenuActive = moreTabs.some(tab => tab.id === activeTab) || (isMobile && mobileMoreTabs.some(tab => tab.id === activeTab));
+
 
   // Define which tabs don't require a company to be selected.
   const administrativeTabs: Tab[] = ['empresas', 'usuarios', 'perfil', 'backup', 'personalizar'];
@@ -83,10 +91,9 @@ export const App: React.FC = () => {
 
         const containerWidth = navContainerRef.current.offsetWidth;
         
-        // Safety check: Don't calculate if the container has no width yet
         if (containerWidth === 0) return;
 
-        const moreButtonWidth = 70; // Estimate width for calculation
+        const moreButtonWidth = 70;
         const tabElements = Array.from(tabsForMeasurementRef.current.children) as HTMLElement[];
 
         let currentWidth = 0;
@@ -95,7 +102,7 @@ export const App: React.FC = () => {
         for (let i = 0; i < tabElements.length; i++) {
             const tabElement = tabElements[i];
             const tabData = allTabs[i];
-            const elementWidth = tabElement.offsetWidth + 8; // 8px for space-x-2 gap
+            const elementWidth = tabElement.offsetWidth + 8;
             
             const remainingTabs = tabElements.length - (i + 1);
             const willNeedMoreButton = remainingTabs > 0;
@@ -118,7 +125,6 @@ export const App: React.FC = () => {
         }
     };
 
-    // Use a timeout to ensure the DOM is fully rendered before measuring
     const timeoutId = setTimeout(updateTabs, 0);
 
     const resizeObserver = new ResizeObserver(updateTabs);
@@ -131,6 +137,36 @@ export const App: React.FC = () => {
         resizeObserver.disconnect();
     };
   }, [allTabs, isMobile]);
+
+  // Effect for the animated indicator
+  useLayoutEffect(() => {
+    if (isMobile || !navTabsContainerRef.current) {
+      setIndicatorStyle({ left: 0, width: 0, opacity: 0 });
+      return;
+    };
+    
+    const activeTabElement = navTabsContainerRef.current.querySelector(`[data-tab-id="${activeTab}"]`) as HTMLElement;
+
+    if (activeTabElement) {
+        setIndicatorStyle({
+            left: activeTabElement.offsetLeft,
+            width: activeTabElement.offsetWidth,
+            opacity: 1,
+        });
+    } else {
+        // Handle case where active tab is in 'More' menu
+        const moreButton = moreButtonRef.current;
+        if(moreButton && isMoreMenuActive){
+            setIndicatorStyle({
+                left: moreButton.offsetLeft,
+                width: moreButton.offsetWidth,
+                opacity: 1,
+            });
+        } else {
+            setIndicatorStyle(prev => ({ ...prev, opacity: 0 }));
+        }
+    }
+  }, [activeTab, mainTabs, moreTabs, isMobile, isMoreMenuActive]);
 
 
   useEffect(() => {
@@ -186,20 +222,14 @@ export const App: React.FC = () => {
     }
   };
 
-  const isMoreMenuActive = moreTabs.some(tab => tab.id === activeTab) || (isMobile && mobileMoreTabs.some(tab => tab.id === activeTab));
-
   const renderTabContent = () => {
     const requiresCompany = !administrativeTabs.includes(activeTab);
 
     if (requiresCompany && !currentCompany) {
-      // This is a defensive check. The main App render logic should handle showing the CompanySelectionScreen.
       return <div className="text-center p-8">Por favor, selecione uma empresa para continuar.</div>;
     }
     
-    // We can use non-null assertion `!` for currentCompany.id in operational tabs
-    // because the logic above ensures it exists when required.
     switch (activeTab) {
-      // Administrative tabs (don't need company)
       case 'personalizar':
         return <PersonalizarTab theme={theme} setTheme={setTheme} resetTheme={resetTheme} />;
       case 'empresas':
@@ -208,8 +238,6 @@ export const App: React.FC = () => {
         return <UserManagementTab showToast={showToast} />;
       case 'perfil':
         return <ProfileTab showToast={showToast} />;
-
-      // Operational tabs (need company)
       case 'dashboard':
         return <DashboardTab showToast={showToast} onNavigateToTab={handleNavigateToTab} empresaId={currentCompany!.id} />;
       case 'consulta':
@@ -303,6 +331,19 @@ export const App: React.FC = () => {
           --color-text-secondary: ${theme.textSecondary};
           --color-border: ${theme.border};
         }
+        @keyframes tab-fade-in {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .animate-tab-content {
+            animation: tab-fade-in 0.4s ease-out;
+        }
         body {
           font-family: 'Inter', sans-serif;
           background-color: var(--color-background);
@@ -328,18 +369,13 @@ export const App: React.FC = () => {
         .tab-button {
             padding: 0.5rem;
             border-radius: 0.5rem;
-            border: 2px solid transparent;
             font-weight: 500;
             transition: all 0.2s ease-in-out;
             line-height: 1.2;
         }
-        .tab-button-active {
-            color: var(--color-primary) !important;
-            background-color: rgba(var(--color-primary-rgb), 0.1);
-        }
-        .tab-button:hover:not(.tab-button-active) {
-            background-color: rgba(var(--color-primary-rgb), 0.05);
+        .tab-button:hover {
             color: var(--color-text);
+            transform: translateY(-2px);
         }
         .help-icon-container:hover .help-tooltip {
           opacity: 1;
@@ -466,7 +502,7 @@ export const App: React.FC = () => {
                 >
                     <QrCodeIcon className="w-7 h-7" style={{color: 'var(--color-primary)'}} />
                 </button>
-                 <div className="hidden md:block w-12"></div> {/* Placeholder to balance header */}
+                 <div className="hidden md:block w-12"></div>
             </div>
         </header>
         
@@ -480,7 +516,7 @@ export const App: React.FC = () => {
         {!isMobile && (
             <nav className="p-2 sticky top-[95px] z-20" style={{backgroundColor: 'var(--color-card)', borderBottom: '1px solid var(--color-border)'}}>
                 <div className="max-w-7xl mx-auto">
-                    <div ref={navContainerRef} className="w-full">
+                    <div ref={navContainerRef} className="relative w-full flex justify-center">
                         <div ref={tabsForMeasurementRef} className="absolute invisible -z-50 flex space-x-2">
                             {allTabs.map(tab => (
                                 <button key={tab.id} className="tab-button whitespace-nowrap flex flex-col items-center">
@@ -490,16 +526,17 @@ export const App: React.FC = () => {
                             ))}
                         </div>
 
-                        <div className="flex justify-center space-x-2">
+                        <div ref={navTabsContainerRef} className="flex justify-center space-x-2">
                             {mainTabs.map(tab => (
                                 <button
                                     key={tab.id}
+                                    data-tab-id={tab.id}
                                     onClick={() => {
                                         setNavigationData(null);
                                         setActiveTab(tab.id);
                                     }}
-                                    className={`tab-button flex flex-col items-center ${activeTab === tab.id ? 'tab-button-active' : ''}`}
-                                    style={{color: 'var(--color-text-secondary)'}}
+                                    className="tab-button flex flex-col items-center"
+                                    style={{color: activeTab === tab.id ? 'var(--color-primary)' : 'var(--color-text-secondary)'}}
                                 >
                                     {React.cloneElement(tab.icon, { className: "w-6 h-6 mb-1" })}
                                     <span className="text-xs whitespace-nowrap">{tab.label}</span>
@@ -509,9 +546,10 @@ export const App: React.FC = () => {
                                 <div className="relative" ref={moreMenuRef}>
                                     <button 
                                         ref={moreButtonRef}
+                                        data-tab-id="more"
                                         onClick={() => setIsMoreMenuOpen(prev => !prev)}
-                                        className={`tab-button flex flex-col items-center ${isMoreMenuActive ? 'tab-button-active' : ''}`}
-                                        style={{color: 'var(--color-text-secondary)'}}
+                                        className="tab-button flex flex-col items-center"
+                                        style={{color: isMoreMenuActive ? 'var(--color-primary)' : 'var(--color-text-secondary)'}}
                                     >
                                         <DotsCircleHorizontalIcon className="w-6 h-6 mb-1"/>
                                         <span className="text-xs whitespace-nowrap">Mais</span>
@@ -542,13 +580,22 @@ export const App: React.FC = () => {
                                 </div>
                             )}
                         </div>
+                        <div
+                            className="absolute bottom-[-9px] h-0.5 rounded-full transition-all duration-300 ease-out"
+                            style={{
+                                left: indicatorStyle.left,
+                                width: indicatorStyle.width,
+                                opacity: indicatorStyle.opacity,
+                                backgroundColor: 'var(--color-primary)',
+                            }}
+                        />
                     </div>
                 </div>
             </nav>
         )}
 
 
-        <main className="p-4 sm:p-6 lg:p-8 relative">
+        <main key={activeTab} className="p-4 sm:p-6 lg:p-8 relative animate-tab-content">
             {isLoadingCompanies && !currentCompany ? <div className="flex justify-center items-center h-64"><Spinner /></div> : renderTabContent()}
         </main>
       </div>
