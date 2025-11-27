@@ -128,8 +128,7 @@ export const pocketbaseService = {
             filter: `empresa = "${empresaId}" && localizacao != ""`,
             fields: 'localizacao',
         });
-        // FIX: Explicitly cast `r.localizacao` to string. When using `fields` option, the PocketBase SDK may not correctly infer the type, leading to a TypeScript error where `r.localizacao` is `unknown`.
-        // The previous use of `String()` was not sufficient for the type checker. Explicitly casting provides the correct type hint.
+        // FIX: Explicitly cast `r.localizacao` to string. When using the `fields` option, the PocketBase SDK may not correctly infer the type, leading to a TypeScript error where `r.localizacao` is `unknown`.
         const locations = new Set(records.map(r => (r.localizacao as string).trim()));
         return [...locations].sort();
     },

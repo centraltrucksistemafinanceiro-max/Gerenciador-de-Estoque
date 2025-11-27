@@ -138,7 +138,13 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
         @media print {
           body * { visibility: hidden; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           #printable-labels, #printable-labels * { visibility: visible; }
-          #printable-labels { position: absolute; left: 3mm; top: 0; }
+          #printable-labels { 
+            position: absolute; 
+            left: 3mm; 
+            top: 0;
+            transform: scale(1.3);
+            transform-origin: top left;
+          }
           .no-print { display: none !important; }
           @page { size: auto; margin: 1mm; }
         }
