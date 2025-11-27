@@ -306,8 +306,17 @@ const FormularioCadastro: React.FC<CadastroTabProps> = ({ empresaId, produtoPara
   )
 }
 
-type ParsedProduct = {codigo: string; descricao: string; valor: number; quantidade: number; localizacao: string;};
+type ParsedProduct = {
+    codigo: string;
+    descricao: string;
+    valor: number;
+    quantidade: number;
+    localizacao: string;
+    codigos_alternativos: string[];
+};
+
 type ValidationStatus = 'novo' | 'ignorado' | 'erro';
+
 interface ValidatedProduct {
     data: ParsedProduct;
     status: ValidationStatus;
@@ -334,10 +343,13 @@ const CadastroEmLote: React.FC<{ empresaId: string, showToast: (message: string,
         for (const line of lines) {
             if (!line.trim()) continue;
             const parts = line.split('\t');
-            const [codigo = '', descricao = '', quantidadeStr = '0', valorStr = '0', localizacao = ''] = parts;
+            const [codigo = '', descricao = '', quantidadeStr = '0', valorStr = '0', localizacao = '', altCodesStr = ''] = parts;
 
             const parsedQuantidade = parseInt(quantidadeStr.trim(), 10) || 0;
             const parsedValor = parseFloat(valorStr.replace(/R\$|\s/g, '').replace(/\./g, '').replace(',', '.')) || 0;
+            const parsedAltCodes = altCodesStr.trim()
+                ? altCodesStr.split(/[,;]/).map(c => c.trim().toUpperCase()).filter(Boolean)
+                : [];
 
             productsToValidate.push({
                 codigo: codigo.trim().toUpperCase(),
@@ -345,6 +357,7 @@ const CadastroEmLote: React.FC<{ empresaId: string, showToast: (message: string,
                 quantidade: Math.max(0, parsedQuantidade),
                 valor: Math.max(0, parsedValor),
                 localizacao: localizacao.trim().toUpperCase(),
+                codigos_alternativos: parsedAltCodes,
             });
         }
         
@@ -397,15 +410,14 @@ const CadastroEmLote: React.FC<{ empresaId: string, showToast: (message: string,
             <div className="p-6 rounded-lg space-y-4" style={{ backgroundColor: 'var(--color-card)', border: '1px solid var(--color-border)' }}>
                 <h3 className="text-lg font-semibold">Importar Produtos em Lote</h3>
                 <p className="text-sm" style={{color: 'var(--color-text-secondary)'}}>
-                    Cole os dados da sua planilha aqui. Use o formato: CÓDIGO (tab) DESCRIÇÃO (tab) QUANTIDADE (tab) VALOR (tab) LOCALIZAÇÃO.
-                    Cada produto deve estar em uma nova linha. Produtos novos serão cadastrados como 'ativos' por padrão.
+                    Cole os dados da sua planilha aqui. Use o formato: CÓDIGO (tab) DESCRIÇÃO (tab) QUANTIDADE (tab) VALOR (tab) LOCALIZAÇÃO (tab) CÓDIGOS ALTERNATIVOS.
+                    A coluna de Códigos Alternativos é opcional. Separe múltiplos códigos com vírgula (,) ou ponto e vírgula (;).
                 </p>
                  <textarea
                     value={textData}
                     onChange={(e) => setTextData(e.target.value)}
                     rows={10}
-                    placeholder={`NTB001	NOTEBOOK GAMER	10	7500,50	A1
-MON002	MONITOR 34	25	2800,00	B2`}
+                    placeholder={`1717/1	ADITIVO 5LITROS	12	184,38	03.02 C	HT5001G-5L`}
                     className="w-full p-2 rounded-md font-mono text-sm"
                     style={{ backgroundColor: 'var(--color-background)', color: 'var(--color-text)', border: '1px solid var(--color-border)' }}
                  />
@@ -435,6 +447,7 @@ MON002	MONITOR 34	25	2800,00	B2`}
                                 <th className="p-2">Qtd</th>
                                 <th className="p-2">Valor</th>
                                 <th className="p-2">Local</th>
+                                <th className="p-2">Alt. Codes</th>
                                 <th className="p-2">Info</th>
                             </tr>
                         </thead>
@@ -447,6 +460,7 @@ MON002	MONITOR 34	25	2800,00	B2`}
                                     <td className="p-2">{p.data.quantidade}</td>
                                     <td className="p-2">{p.data.valor.toFixed(2)}</td>
                                     <td className="p-2 font-mono">{p.data.localizacao}</td>
+                                    <td className="p-2 font-mono text-xs">{p.data.codigos_alternativos.join(', ')}</td>
                                     <td className="p-2 text-red-400">{p.errorMessage}</td>
                                 </tr>
                             ))}
@@ -471,6 +485,8 @@ export const CadastroTab: React.FC<CadastroTabProps> = (props) => {
 
     const handleBatchComplete = () => {
         setView('form');
+        // Clear navigation data to avoid re-opening with pre-filled state
+        props.onNavigateToTab('cadastro', { produtoParaEditar: null, codigoNovoProduto: null });
     }
 
     const isEditingOrPreFilled = !!props.produtoParaEditar || !!props.codigoNovoProduto;

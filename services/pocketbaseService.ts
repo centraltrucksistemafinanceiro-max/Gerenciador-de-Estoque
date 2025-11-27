@@ -124,13 +124,13 @@ export const pocketbaseService = {
     },
     
     async getUniqueProductLocations(empresaId: string): Promise<string[]> {
-        const records = await pb.collection('produtos').getFullList({
+        // FIX: Add a generic type to getFullList to correctly type the partial records.
+        // This resolves the error on the return statement where `[...locations]` was being inferred as `unknown[]`.
+        const records = await pb.collection('produtos').getFullList<Pick<Produto, 'localizacao'>>({
             filter: `empresa = "${empresaId}" && localizacao != ""`,
             fields: 'localizacao',
         });
-        // FIX: When using the `fields` option, properties are returned as `unknown`.
-        // Explicitly cast `r.localizacao` to a string to resolve the type error.
-        const locations = new Set(records.map(r => String(r.localizacao).trim()));
+        const locations = new Set(records.map(r => r.localizacao.trim()));
         return [...locations].sort();
     },
 
@@ -158,25 +158,42 @@ export const pocketbaseService = {
         return updatedProduto;
     },
     
-    async validarProdutosEmLote(empresaId: string, produtosParaValidar: Array<{codigo: string}>): Promise<any[]> {
-        const allExistingProducts = await this.getAllProdutos(empresaId, true);
-        const allExistingCodes = new Set(allExistingProducts.flatMap(p => [p.codigo.toLowerCase(), ...p.codigos_alternativos.map(c => c.toLowerCase())]));
+    async validarProdutosEmLote(empresaId: string, produtosParaValidar: Array<{codigo: string; codigos_alternativos: string[]}>): Promise<any[]> {
+        // Fetch all codes (primary and alternative) from the database at once for efficiency.
+        const allExistingProducts = await this.getAllProdutos(empresaId, true, {});
+        const allExistingCodes = new Set(
+            allExistingProducts.flatMap(p => 
+                [p.codigo.toLowerCase(), ...p.codigos_alternativos.map(c => c.toLowerCase())]
+            )
+        );
+
         const codesInThisBatch = new Set<string>();
         
         return produtosParaValidar.map((p: any) => {
             const result = { data: p, status: 'novo' as 'novo' | 'ignorado' | 'erro', errorMessage: '' };
-            if (!p.codigo || !p.descricao || p.valor <= 0 || !p.localizacao) {
+            if (!p.codigo || !p.descricao || p.valor < 0 || !p.localizacao) {
                 result.status = 'erro';
                 result.errorMessage = 'Dados incompletos.';
                 return result;
             }
-            const lowerCodigo = p.codigo.toLowerCase();
-            if (allExistingCodes.has(lowerCodigo) || codesInThisBatch.has(lowerCodigo)) {
-                result.status = 'ignorado';
-                result.errorMessage = 'Código já existe.';
+
+            const allCodesForThisProduct = [p.codigo, ...p.codigos_alternativos].map(c => c.toLowerCase());
+            
+            for (const code of allCodesForThisProduct) {
+                 if (allExistingCodes.has(code)) {
+                    result.status = 'ignorado';
+                    result.errorMessage = `Código "${code}" já existe no banco de dados.`;
+                    return result;
+                }
+                if (codesInThisBatch.has(code)) {
+                    result.status = 'ignorado';
+                    result.errorMessage = `Código "${code}" duplicado neste lote.`;
+                    return result;
+                }
             }
+
             if (result.status === 'novo') {
-                codesInThisBatch.add(lowerCodigo);
+                allCodesForThisProduct.forEach(code => codesInThisBatch.add(code));
             }
             return result;
         });
@@ -187,14 +204,13 @@ export const pocketbaseService = {
         for (const p of novosProdutos) {
             try {
                 await this.cadastrarProduto({
-                    ...p,
+                    ...p, // Contains codigo, descricao, valor, quantidade, localizacao, codigos_alternativos
                     empresa: empresaId,
-                    codigos_alternativos: [],
                     status: 'ativo'
                 }, userId);
                 criados++;
             } catch (e) {
-                console.error("Batch create error:", e);
+                console.error(`Falha ao cadastrar ${p.codigo}:`, e);
             }
         }
         return { criados, ignorados: novosProdutos.length - criados };
