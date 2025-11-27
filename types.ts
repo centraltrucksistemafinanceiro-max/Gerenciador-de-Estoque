@@ -102,6 +102,11 @@ export interface LabelPreset {
   labelsPerRow: number;
 }
 
+export interface ProdutoParaImpressao {
+  produto: Produto;
+  quantidade: number;
+}
+
 export type ContagemStatus = 'em andamento' | 'finalizada';
 
 export interface ContagemEstoque extends BaseRecord {
