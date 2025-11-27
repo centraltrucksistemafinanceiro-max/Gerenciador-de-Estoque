@@ -64,7 +64,7 @@ export const App: React.FC = () => {
       { id: 'backup', label: 'Backup', roles: ['admin'], icon: <DownloadIcon/> },
       { id: 'personalizar', label: 'Personalizar', roles: ['admin'], icon: <EditIcon/> },
       { id: 'empresas', label: 'Empresas', roles: ['admin'], icon: <PackageIcon/> },
-      { id: 'usuarios', label: 'Usuários', roles: ['admin'], icon: <UserIcon/> },
+      { id: 'usuarios', label: 'Usuários', roles: ['admin', 'user'], icon: <UserIcon/> },
     ];
     return tabs.filter(tab => !!currentUser?.role && tab.roles.includes(currentUser.role));
   }, [currentUser]);
@@ -181,6 +181,8 @@ export const App: React.FC = () => {
     showToast(`Código "${codigo}" lido com sucesso!`, 'success');
     if (activeTab === 'separacao' || activeTab === 'contagem') {
        setNavigationData({ scannedCode: codigo, timestamp: Date.now() });
+    } else if (activeTab === 'etiquetas') {
+      handleNavigateToTab('etiquetas', { codigoBuscaInicial: codigo });
     } else {
       handleNavigateToTab('movimentacao', { codigoBuscaInicial: codigo });
     }
@@ -225,7 +227,7 @@ export const App: React.FC = () => {
       case 'relatorios':
         return <RelatoriosTab empresaId={currentCompany!.id} />;
       case 'etiquetas':
-        return <EtiquetasTab showToast={showToast} empresaId={currentCompany!.id} />;
+        return <EtiquetasTab showToast={showToast} empresaId={currentCompany!.id} onScanOpen={() => setIsScannerOpen(true)} codigoBuscaInicial={navigationData?.codigoBuscaInicial || null} />;
       case 'separacao':
         return <SeparacaoTab showToast={showToast} onNavigateToTab={handleNavigateToTab} scannedCode={navigationData?.scannedCode || null} scanTimestamp={navigationData?.timestamp || null} empresaId={currentCompany!.id} />;
       case 'contagem':

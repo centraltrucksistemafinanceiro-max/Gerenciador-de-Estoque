@@ -1,8 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { pocketbaseService } from '../../services/pocketbaseService';
 import type { Produto } from '../../types';
 import Spinner from '../Spinner';
-import { SearchIcon, PrintIcon } from '../icons/Icon';
+import { SearchIcon, PrintIcon, QrCodeIcon } from '../icons/Icon';
 import { useLabelConfig } from '../../hooks/useLabelConfig';
 import HelpIcon from '../HelpIcon';
 
@@ -14,9 +14,11 @@ interface Etiqueta {
 interface EtiquetasTabProps {
     empresaId: string;
     showToast: (message: string, type: 'success' | 'error' | 'warning') => void;
+    onScanOpen: () => void;
+    codigoBuscaInicial: string | null;
 }
 
-export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast }) => {
+export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast, onScanOpen, codigoBuscaInicial }) => {
   const [codigo, setCodigo] = useState('');
   const [produto, setProduto] = useState<Produto | null>(null);
   const [notFound, setNotFound] = useState(false);
@@ -33,9 +35,8 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
   }, [presets, selectedPresetId]);
 
 
-  const handleSearch = async (e?: React.FormEvent) => {
-    e?.preventDefault();
-    if (!codigo) {
+  const handleSearch = useCallback(async (searchCodigo: string) => {
+    if (!searchCodigo) {
       showToast('Por favor, insira um código para buscar.', 'warning');
       return;
     }
@@ -44,7 +45,7 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
     setNotFound(false);
     setEtiquetasGeradas([]);
     try {
-      const result = await pocketbaseService.findProdutoByCodigo(empresaId, codigo);
+      const result = await pocketbaseService.findProdutoByCodigo(empresaId, searchCodigo);
       if (result) {
         setProduto(result);
       } else {
@@ -56,6 +57,18 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
     } finally {
       setIsLoading(false);
     }
+  }, [empresaId, showToast]);
+
+  useEffect(() => {
+    if (codigoBuscaInicial) {
+      setCodigo(codigoBuscaInicial);
+      handleSearch(codigoBuscaInicial);
+    }
+  }, [codigoBuscaInicial, handleSearch]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    handleSearch(codigo);
   };
   
   const handleGenerate = () => {
@@ -132,7 +145,7 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
         </div>
         
         <div className="p-6 rounded-lg shadow-md" style={{ backgroundColor: 'var(--color-card)', border: '1px solid var(--color-border)' }}>
-          <form onSubmit={handleSearch} className="flex flex-col sm:flex-row gap-4 mb-4">
+          <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-4 mb-4">
             <input
               type="text"
               value={codigo}
@@ -141,6 +154,15 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
               className="flex-grow px-4 py-2 transition-all"
               style={{ backgroundColor: 'var(--color-background)', color: 'var(--color-text)', border: '1px solid var(--color-border)' }}
             />
+            <button
+              type="button"
+              onClick={onScanOpen}
+              className="px-4 py-2 rounded-lg transition-all"
+              style={{ backgroundColor: 'var(--color-border)', color: 'var(--color-text)' }}
+              title="Escanear Código do Produto"
+            >
+              <QrCodeIcon className="w-5 h-5" />
+            </button>
             <button
               type="submit"
               disabled={isLoading}
