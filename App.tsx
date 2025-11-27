@@ -5,7 +5,7 @@ import QRCodeScanner from './components/QRCodeScanner';
 import { 
     QrCodeIcon, MoreHorizontalIcon, UserIcon, LogoutIcon, DashboardIcon, SearchIcon, 
     ArrowsRightLeftIcon, ClipboardListIcon, DotsCircleHorizontalIcon, ClipboardCheckIcon,
-    PackageIcon, PlusIcon, TrendingUpIcon, DownloadIcon, EditIcon, IconProps
+    PackageIcon, PlusIcon, TrendingUpIcon, EditIcon, IconProps
 } from './components/icons/Icon';
 
 import { DashboardTab } from './components/tabs/DashboardTab';
@@ -16,7 +16,6 @@ import { CadastroTab } from './components/tabs/CadastroTab';
 import { RelatoriosTab } from './components/tabs/RelatoriosTab';
 import { EtiquetasTab } from './components/tabs/EtiquetasTab';
 import { PersonalizarTab } from './components/tabs/PersonalizarTab';
-import { BackupTab } from './components/tabs/BackupTab';
 import { SeparacaoTab } from './components/tabs/SeparacaoTab';
 import { ContagemTab } from './components/tabs/ContagemTab';
 import { UserManagementTab } from './components/tabs/UserManagementTab';
@@ -61,7 +60,6 @@ export const App: React.FC = () => {
       { id: 'cadastro', label: 'Cadastro', roles: ['admin', 'user'], icon: <PlusIcon/> },
       { id: 'etiquetas', label: 'Etiquetas', roles: ['admin', 'user'], icon: <QrCodeIcon/> },
       { id: 'relatorios', label: 'Relatórios', roles: ['admin', 'user'], icon: <TrendingUpIcon/> },
-      { id: 'backup', label: 'Backup', roles: ['admin'], icon: <DownloadIcon/> },
       { id: 'personalizar', label: 'Personalizar', roles: ['admin'], icon: <EditIcon/> },
       { id: 'empresas', label: 'Empresas', roles: ['admin'], icon: <PackageIcon/> },
       { id: 'usuarios', label: 'Usuários', roles: ['admin', 'user'], icon: <UserIcon/> },
@@ -204,8 +202,6 @@ export const App: React.FC = () => {
       // Administrative tabs (don't need company)
       case 'personalizar':
         return <PersonalizarTab theme={theme} setTheme={setTheme} resetTheme={resetTheme} />;
-      case 'backup':
-        return <BackupTab showToast={showToast} />;
       case 'empresas':
         return <EmpresasTab showToast={showToast} onNavigateToTab={handleNavigateToTab} />;
       case 'usuarios':

@@ -1,5 +1,5 @@
 import PocketBase, { RecordModel } from 'pocketbase';
-import type { User, Empresa, Produto, Movimentacao, Separacao, SeparacaoItem, ContagemEstoque, ContagemEstoqueItem, MovimentacaoTipo, BackupData } from '../types';
+import type { User, Empresa, Produto, Movimentacao, Separacao, SeparacaoItem, ContagemEstoque, ContagemEstoqueItem, MovimentacaoTipo } from '../types';
 
 const pb = new PocketBase('https://sistemaB.fs-sistema.cloud/');
 
@@ -128,7 +128,8 @@ export const pocketbaseService = {
             filter: `empresa = "${empresaId}" && localizacao != ""`,
             fields: 'localizacao',
         });
-        // FIX: Cast record properties to string, as `fields` option makes them `unknown`.
+        // FIX: When using the `fields` option, properties are returned as `unknown`.
+        // Explicitly cast `r.localizacao` to a string to resolve the type error.
         const locations = new Set(records.map(r => String(r.localizacao).trim()));
         return [...locations].sort();
     },
@@ -230,82 +231,6 @@ export const pocketbaseService = {
         });
     },
     
-    // --- BACKUP METHODS ---
-    async exportBackup(): Promise<BackupData> {
-        const collections: (keyof BackupData)[] = ['empresas', 'produtos', 'movimentacoes', 'separacoes', 'separacao_itens', 'contagens', 'contagem_itens', 'users'];
-        const backupData: Partial<BackupData> = {};
-        
-        for (const collectionName of collections) {
-             (backupData[collectionName] as any) = await pb.collection(collectionName).getFullList({
-                fields: collectionName === 'users' ? 'id,username,role,created,updated' : undefined
-            });
-        }
-        return backupData as BackupData;
-    },
-
-    async importBackup(data: BackupData, importerUserId: string): Promise<void> {
-        // Phase 1: Clear all existing data in reverse relational order
-        const collectionsToDelete: (keyof Omit<BackupData, 'users'>)[] = ['separacao_itens', 'contagem_itens', 'movimentacoes', 'produtos', 'separacoes', 'contagens', 'empresas'];
-        for (const collectionName of collectionsToDelete) {
-            const records = await pb.collection(collectionName).getFullList({ fields: 'id' });
-            for (const r of records) {
-                await pb.collection(collectionName).delete(r.id);
-            }
-        }
-
-        // Phase 2: Define schemas to create clean payloads
-        // FIX: Use `string[]` instead of `(keyof any)[]` to prevent `symbol` from being used as an index type.
-        const schemas: { [key in keyof Omit<BackupData, 'users'>]: string[] } = {
-            empresas: ['nome'],
-            produtos: ['empresa', 'codigo', 'descricao', 'valor', 'quantidade', 'localizacao', 'status', 'codigos_alternativos'],
-            movimentacoes: ['empresa', 'produto_codigo', 'produto_descricao', 'tipo', 'quantidade', 'usuario'],
-            separacoes: ['empresa', 'osNumero', 'cliente', 'placaVeiculo', 'dataFinalizacao', 'status', 'usuario', 'nome_recebedor'],
-            separacao_itens: ['separacao', 'produto_codigo', 'produto_descricao', 'localizacao', 'quantidade_requerida', 'quantidade_separada', 'quantidade_estoque_inicial'],
-            contagens: ['empresa', 'nome', 'dataFinalizacao', 'status'],
-            contagem_itens: ['contagem', 'produto_codigo', 'produto_descricao', 'quantidade_sistema', 'quantidade_contada'],
-        };
-        
-        const idMap: { [collection: string]: { [oldId: string]: string } } = {};
-        const importOrder: (keyof Omit<BackupData, 'users'>)[] = ['empresas', 'produtos', 'movimentacoes', 'separacoes', 'contagens', 'separacao_itens', 'contagem_itens'];
-
-        // Phase 3: Create new records and map old IDs to new IDs
-        for (const collectionName of importOrder) {
-            idMap[collectionName] = {};
-            const recordsToImport = data[collectionName] as any[] || [];
-
-            for (const record of recordsToImport) {
-                const oldId = record.id;
-                const createData: { [key: string]: any } = {};
-                
-                // Build a clean payload based on the schema
-                const schema = schemas[collectionName];
-                for (const key of schema) {
-                    if (record[key] !== undefined) {
-                        createData[key] = record[key];
-                    }
-                }
-
-                // Remap relational fields
-                if (createData.empresa && idMap.empresas) createData.empresa = idMap.empresas[createData.empresa];
-                if (createData.separacao && idMap.separacoes) createData.separacao = idMap.separacoes[createData.separacao];
-                if (createData.contagem && idMap.contagens) createData.contagem = idMap.contagens[createData.contagem];
-
-                // Always assign the current user if a 'usuario' field exists
-                if ('usuario' in createData) {
-                    createData.usuario = importerUserId;
-                }
-
-                try {
-                    const newRecord = await pb.collection(collectionName).create(createData);
-                    idMap[collectionName][oldId] = newRecord.id;
-                } catch (e: any) {
-                    console.error(`Failed to import record into ${collectionName}:`, createData, e.response || e);
-                    throw new Error(`Falha ao importar um registro para a coleção "${collectionName}". A importação foi interrompida.`);
-                }
-            }
-        }
-    },
-
     // --- SEPARACAO METHODS ---
     async createSeparacao(data: Partial<Separacao>): Promise<Separacao> {
         return pb.collection('separacoes').create<Separacao>(data);

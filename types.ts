@@ -53,17 +53,6 @@ export interface Empresa extends BaseRecord {
     nome: string;
 }
 
-export interface BackupData {
-  empresas: Empresa[];
-  produtos: Produto[];
-  movimentacoes: Movimentacao[];
-  separacoes: Separacao[];
-  separacao_itens: SeparacaoItem[];
-  contagens: ContagemEstoque[];
-  contagem_itens: ContagemEstoqueItem[];
-  users: Omit<User, 'empresas'>[]; // Base user data for backup
-}
-
 export type SeparacaoStatus = 'em andamento' | 'aguardando entrega' | 'entregue';
 
 export interface Separacao extends BaseRecord {
