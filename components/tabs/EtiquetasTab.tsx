@@ -13,6 +13,10 @@ interface EtiquetasTabProps {
     codigoBuscaInicial: string | null;
 }
 
+// !!! IMPORTANTE: Substitua esta URL pela URL onde você hospedará o arquivo public-product-view.html
+const PUBLIC_VIEW_URL_BASE = 'https://SUA_URL_PUBLICA/public-product-view.html';
+
+
 export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast, onScanOpen, codigoBuscaInicial }) => {
   // Search state
   const [codigo, setCodigo] = useState('');
@@ -109,6 +113,11 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
     if (filaImpressao.length === 0) {
       showToast('A fila de impressão está vazia.', 'warning');
       return;
+    }
+    
+    if (PUBLIC_VIEW_URL_BASE.includes('SUA_URL_PUBLICA')) {
+        showToast('URL pública não configurada. Edite o arquivo EtiquetasTab.tsx.', 'error');
+        return;
     }
 
     const novasEtiquetas: Produto[] = [];
@@ -252,7 +261,8 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
               {Array.from({ length: Math.ceil(etiquetasGeradas.length / selectedPreset.labelsPerRow) }).map((_, rowIndex) => (
                 <div key={rowIndex} className="flex flex-row" style={{ gap: '5mm', marginBottom: '1mm', width: `${containerWidth}mm` }}>
                   {etiquetasGeradas.slice(rowIndex * selectedPreset.labelsPerRow, (rowIndex + 1) * selectedPreset.labelsPerRow).map((produto, labelIndex) => {
-                    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(produto.codigo)}&qzone=1&margin=0`;
+                    const publicUrl = `${PUBLIC_VIEW_URL_BASE}?id=${produto.id}`;
+                    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(publicUrl)}&qzone=1&margin=0`;
                     return (
                         <div key={`${produto.id}-${rowIndex}-${labelIndex}`} className="text-black bg-white flex flex-col text-center font-mono box-border justify-between"
                             style={{
