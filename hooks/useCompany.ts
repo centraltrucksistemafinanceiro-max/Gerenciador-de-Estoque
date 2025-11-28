@@ -14,7 +14,7 @@ interface CompanyContextType {
 const CompanyContext = createContext<CompanyContextType | undefined>(undefined);
 
 export const CompanyProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-    const { currentUser } = useAuth();
+    const { currentUser, isLoadingAuth } = useAuth();
     const [companies, setCompanies] = useState<Empresa[]>([]);
     const [currentCompany, setCurrentCompany] = useState<Empresa | null>(null);
     const [isLoadingCompanies, setIsLoadingCompanies] = useState(true);
@@ -28,7 +28,7 @@ export const CompanyProvider: React.FC<{ children: ReactNode }> = ({ children })
         }
     }, []);
 
-    const loadCompanies = useCallback(async () => {
+    const loadAndRestoreCompanies = useCallback(async () => {
         if (!currentUser) {
             setCompanies([]);
             selectCompany(null);
@@ -44,11 +44,10 @@ export const CompanyProvider: React.FC<{ children: ReactNode }> = ({ children })
             const storedCompanyId = sessionStorage.getItem('currentCompanyId');
             
             const companyToSelect = 
-                allCompanies.find(c => c.id === storedCompanyId) || // Try to find the stored one
-                allCompanies[0] || // Or default to the first one
-                null; // Or null if no companies exist
+                allCompanies.find(c => c.id === storedCompanyId) ||
+                allCompanies[0] || 
+                null; 
 
-            // The selectCompany function handles setting state and sessionStorage
             selectCompany(companyToSelect);
 
         } catch (error) {
@@ -61,13 +60,15 @@ export const CompanyProvider: React.FC<{ children: ReactNode }> = ({ children })
     }, [currentUser, selectCompany]);
 
     useEffect(() => {
-        loadCompanies();
-    }, [loadCompanies]);
+        // Only run the company loading logic AFTER the initial authentication check is complete.
+        if (!isLoadingAuth) {
+            loadAndRestoreCompanies();
+        }
+    }, [isLoadingAuth, loadAndRestoreCompanies]);
 
     const refreshCompanies = useCallback(async () => {
-        // Just re-run the loading logic
-        await loadCompanies();
-    }, [loadCompanies]);
+        await loadAndRestoreCompanies();
+    }, [loadAndRestoreCompanies]);
 
     const value = useMemo(() => ({ companies, currentCompany, isLoadingCompanies, selectCompany, refreshCompanies }), [companies, currentCompany, isLoadingCompanies, selectCompany, refreshCompanies]);
 
