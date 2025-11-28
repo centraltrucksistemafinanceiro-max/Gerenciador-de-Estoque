@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useRef, useEffect, useMemo, useLayoutEffect } from 'react';
 import { useTheme } from './hooks/useTheme';
 import { ToastContainer } from './components/Toast';
@@ -212,13 +213,28 @@ export const App: React.FC = () => {
   
   const handleScanSuccess = (codigo: string) => {
     setIsScannerOpen(false);
-    showToast(`Código "${codigo}" lido com sucesso!`, 'success');
+    
+    // Intelligent Scanner Logic for Hybrid QR Codes
+    let processedCode = codigo;
+    if (codigo.includes('public-product-view.html') && codigo.includes('code=')) {
+        try {
+            const url = new URL(codigo);
+            const codeParam = url.searchParams.get('code');
+            if (codeParam) {
+                processedCode = codeParam;
+            }
+        } catch (e) {
+            console.error("Error parsing QR URL, using original code", e);
+        }
+    }
+
+    showToast(`Código "${processedCode}" lido com sucesso!`, 'success');
     if (activeTab === 'separacao' || activeTab === 'contagem') {
-       setNavigationData({ scannedCode: codigo, timestamp: Date.now() });
+       setNavigationData({ scannedCode: processedCode, timestamp: Date.now() });
     } else if (activeTab === 'etiquetas') {
-      handleNavigateToTab('etiquetas', { codigoBuscaInicial: codigo });
+      handleNavigateToTab('etiquetas', { codigoBuscaInicial: processedCode });
     } else {
-      handleNavigateToTab('movimentacao', { codigoBuscaInicial: codigo });
+      handleNavigateToTab('movimentacao', { codigoBuscaInicial: processedCode });
     }
   };
 

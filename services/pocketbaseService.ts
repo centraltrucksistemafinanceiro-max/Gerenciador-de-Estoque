@@ -124,15 +124,13 @@ export const pocketbaseService = {
     },
     
     async getUniqueProductLocations(empresaId: string): Promise<string[]> {
-        const records = await pb.collection('produtos').getFullList<Pick<Produto, 'localizacao'>>({
+        const records = await pb.collection('produtos').getFullList({
             filter: `empresa = "${empresaId}" && localizacao != ""`,
             fields: 'localizacao',
         });
-        // FIX: When using `fields`, PocketBase SDK may return properties as `unknown`.
-        // Explicitly converting `r.localizacao` to a string ensures type safety.
-        // FIX: Type 'unknown' is not assignable to type 'string'. Explicitly cast to string.
-        const locations = new Set(records.map(r => String(r.localizacao).trim()));
-        return [...locations].sort();
+        
+        const locations = new Set<string>(records.map((r: any) => String(r.localizacao || '').trim()));
+        return Array.from(locations).filter(l => l !== '').sort();
     },
 
     async cadastrarProduto(novoProdutoData: Omit<Produto, 'id' | 'collectionId' | 'collectionName' | 'created' | 'updated'>, userId: string): Promise<Produto> {

@@ -20,6 +20,7 @@ const initialFormData = {
   valor: 0,
   localizacao: '',
   quantidade: 0,
+  pecasPorPacote: 1,
   codigos_alternativos: [''],
 };
 
@@ -42,6 +43,7 @@ const FormularioCadastro: React.FC<CadastroTabProps> = ({ empresaId, produtoPara
         valor: produtoParaEditar.valor,
         localizacao: produtoParaEditar.localizacao,
         quantidade: produtoParaEditar.quantidade,
+        pecasPorPacote: produtoParaEditar.pecasPorPacote || 1,
         codigos_alternativos: [...produtoParaEditar.codigos_alternativos, ''],
       });
       setIsEditing(true);
@@ -156,6 +158,7 @@ const FormularioCadastro: React.FC<CadastroTabProps> = ({ empresaId, produtoPara
       descricao: formData.descricao,
       valor: Number(formData.valor),
       localizacao: formData.localizacao,
+      pecasPorPacote: Number(formData.pecasPorPacote) || 1,
       codigos_alternativos: cleanedAltCodes,
       status: status,
     };
@@ -229,7 +232,7 @@ const FormularioCadastro: React.FC<CadastroTabProps> = ({ empresaId, produtoPara
             <input id="valor" name="valor" type="number" step="0.01" min="0" value={formData.valor} onChange={handleChange} className="w-full px-4 py-2 rounded-md" style={{ backgroundColor: 'var(--color-background)', color: 'var(--color-text)', border: '1px solid var(--color-border)' }} />
           </div>
            <div>
-            <label htmlFor="quantidade" className="block mb-1 font-semibold">Quantidade Inicial</label>
+            <label htmlFor="quantidade" className="block mb-1 font-semibold">Quantidade Inicial (Pacotes)</label>
             <input 
                 id="quantidade" 
                 name="quantidade" 
@@ -249,9 +252,15 @@ const FormularioCadastro: React.FC<CadastroTabProps> = ({ empresaId, produtoPara
             )}
           </div>
       </div>
-       <div>
-        <label htmlFor="localizacao" className="block mb-1 font-semibold">Localização</label>
-        <input id="localizacao" name="localizacao" type="text" placeholder="Ex: 01.05 A" value={formData.localizacao} onChange={handleChange} className="w-full px-4 py-2 rounded-md" style={{ backgroundColor: 'var(--color-background)', color: 'var(--color-text)', border: '1px solid var(--color-border)' }} />
+       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <label htmlFor="localizacao" className="block mb-1 font-semibold">Localização</label>
+          <input id="localizacao" name="localizacao" type="text" placeholder="Ex: 01.05 A" value={formData.localizacao} onChange={handleChange} className="w-full px-4 py-2 rounded-md" style={{ backgroundColor: 'var(--color-background)', color: 'var(--color-text)', border: '1px solid var(--color-border)' }} />
+        </div>
+        <div>
+          <label htmlFor="pecasPorPacote" className="block mb-1 font-semibold">Unidades por Pacote</label>
+          <input id="pecasPorPacote" name="pecasPorPacote" type="number" min="1" value={formData.pecasPorPacote} onChange={handleChange} className="w-full px-4 py-2 rounded-md" style={{ backgroundColor: 'var(--color-background)', color: 'var(--color-text)', border: '1px solid var(--color-border)' }} />
+        </div>
       </div>
       
       <div className="border-t pt-4" style={{borderColor: 'var(--color-border)'}}>
@@ -312,6 +321,7 @@ type ParsedProduct = {
     valor: number;
     quantidade: number;
     localizacao: string;
+    pecasPorPacote: number;
     codigos_alternativos: string[];
 };
 
@@ -343,13 +353,14 @@ const CadastroEmLote: React.FC<{ empresaId: string, showToast: (message: string,
         for (const line of lines) {
             if (!line.trim()) continue;
             const parts = line.split('\t');
-            const [codigo = '', descricao = '', quantidadeStr = '0', valorStr = '0', localizacao = '', altCodesStr = ''] = parts;
+            const [codigo = '', descricao = '', quantidadeStr = '0', valorStr = '0', localizacao = '', altCodesStr = '', pecasPorPacoteStr = '1'] = parts;
 
             const parsedQuantidade = parseInt(quantidadeStr.trim(), 10) || 0;
             const parsedValor = parseFloat(valorStr.replace(/R\$|\s/g, '').replace(/\./g, '').replace(',', '.')) || 0;
             const parsedAltCodes = altCodesStr.trim()
                 ? altCodesStr.split(/[,;]/).map(c => c.trim().toUpperCase()).filter(Boolean)
                 : [];
+            const parsedPecasPorPacote = parseInt(pecasPorPacoteStr.trim(), 10) || 1;
 
             productsToValidate.push({
                 codigo: codigo.trim().toUpperCase(),
@@ -357,6 +368,7 @@ const CadastroEmLote: React.FC<{ empresaId: string, showToast: (message: string,
                 quantidade: Math.max(0, parsedQuantidade),
                 valor: Math.max(0, parsedValor),
                 localizacao: localizacao.trim().toUpperCase(),
+                pecasPorPacote: Math.max(1, parsedPecasPorPacote),
                 codigos_alternativos: parsedAltCodes,
             });
         }
@@ -410,14 +422,14 @@ const CadastroEmLote: React.FC<{ empresaId: string, showToast: (message: string,
             <div className="p-6 rounded-lg space-y-4" style={{ backgroundColor: 'var(--color-card)', border: '1px solid var(--color-border)' }}>
                 <h3 className="text-lg font-semibold">Importar Produtos em Lote</h3>
                 <p className="text-sm" style={{color: 'var(--color-text-secondary)'}}>
-                    Cole os dados da sua planilha aqui. Use o formato: CÓDIGO (tab) DESCRIÇÃO (tab) QUANTIDADE (tab) VALOR (tab) LOCALIZAÇÃO (tab) CÓDIGOS ALTERNATIVOS.
-                    A coluna de Códigos Alternativos é opcional. Separe múltiplos códigos com vírgula (,) ou ponto e vírgula (;).
+                    Cole os dados da sua planilha. Formato: CÓDIGO (tab) DESCRIÇÃO (tab) QTD (tab) VALOR (tab) LOCAL (tab) ALT_CODES (tab) UND/PCT.
+                    As colunas de Códigos Alternativos e Unidades por Pacote são opcionais.
                 </p>
                  <textarea
                     value={textData}
                     onChange={(e) => setTextData(e.target.value)}
                     rows={10}
-                    placeholder={`1717/1	ADITIVO 5LITROS	12	184,38	03.02 C	HT5001G-5L`}
+                    placeholder={`1717/1	ADITIVO 5L	12	184,38	03.02 C	HT5001G-5L	1`}
                     className="w-full p-2 rounded-md font-mono text-sm"
                     style={{ backgroundColor: 'var(--color-background)', color: 'var(--color-text)', border: '1px solid var(--color-border)' }}
                  />
@@ -445,6 +457,7 @@ const CadastroEmLote: React.FC<{ empresaId: string, showToast: (message: string,
                                 <th className="p-2">Código</th>
                                 <th className="p-2">Descrição</th>
                                 <th className="p-2">Qtd</th>
+                                <th className="p-2">Und/Pct</th>
                                 <th className="p-2">Valor</th>
                                 <th className="p-2">Local</th>
                                 <th className="p-2">Alt. Codes</th>
@@ -458,6 +471,7 @@ const CadastroEmLote: React.FC<{ empresaId: string, showToast: (message: string,
                                     <td className="p-2 font-mono">{p.data.codigo}</td>
                                     <td className="p-2">{p.data.descricao}</td>
                                     <td className="p-2">{p.data.quantidade}</td>
+                                    <td className="p-2">{p.data.pecasPorPacote}</td>
                                     <td className="p-2">{p.data.valor.toFixed(2)}</td>
                                     <td className="p-2 font-mono">{p.data.localizacao}</td>
                                     <td className="p-2 font-mono text-xs">{p.data.codigos_alternativos.join(', ')}</td>

@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { pocketbaseService } from '../../services/pocketbaseService';
 import type { Produto, ProdutoParaImpressao } from '../../types';
@@ -267,7 +268,8 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
               {Array.from({ length: Math.ceil(etiquetasGeradas.length / selectedPreset.labelsPerRow) }).map((_, rowIndex) => (
                 <div key={rowIndex} className="flex flex-row" style={{ gap: '5mm', marginBottom: '1mm', width: `${containerWidth}mm` }}>
                   {etiquetasGeradas.slice(rowIndex * selectedPreset.labelsPerRow, (rowIndex + 1) * selectedPreset.labelsPerRow).map((produto, labelIndex) => {
-                    const qrCodeUrl = `https://sistemaB.fs-sistema.cloud/public-product-view.html?id=${produto.id}`;
+                    // Hybrid QR Code URL: Public Link + Internal Code Param
+                    const qrCodeUrl = `https://sistemaB.fs-sistema.cloud/public-product-view.html?id=${produto.id}&code=${produto.codigo}`;
                     return (
                         <div key={`${produto.id}-${rowIndex}-${labelIndex}`} className="text-black bg-white flex flex-col text-center font-mono box-border justify-between"
                             style={{
@@ -298,7 +300,7 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
 
                             <div className="flex justify-between w-full" style={{ fontSize: `${selectedPreset.footerFontSize}pt` }}>
                                 <span>loc: {produto.localizacao}</span>
-                                <span>Qtd: 1</span>
+                                <span>Qtd: {produto.quantidade}</span>
                             </div>
                         </div>
                     )

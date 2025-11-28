@@ -13,6 +13,7 @@ export interface Produto extends BaseRecord {
   descricao: string;
   valor: number;
   quantidade: number;
+  pecasPorPacote: number; // New field
   localizacao: string;
   status: 'ativo' | 'inativo';
   codigos_alternativos: string[];
