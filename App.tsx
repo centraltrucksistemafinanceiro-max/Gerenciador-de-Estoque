@@ -1,4 +1,5 @@
 
+
 import React, { useState, useCallback, useRef, useEffect, useMemo, useLayoutEffect } from 'react';
 import { useTheme } from './hooks/useTheme';
 import { ToastContainer } from './components/Toast';
@@ -271,7 +272,7 @@ export const App: React.FC = () => {
       case 'separacao':
         return <SeparacaoTab showToast={showToast} onNavigateToTab={handleNavigateToTab} scannedCode={navigationData?.scannedCode || null} scanTimestamp={navigationData?.timestamp || null} empresaId={currentCompany!.id} />;
       case 'contagem':
-        return <ContagemTab showToast={showToast} scannedCode={navigationData?.scannedCode || null} scanTimestamp={navigationData?.timestamp || null} empresaId={currentCompany!.id} />;
+        return <ContagemTab showToast={showToast} onScanOpen={() => setIsScannerOpen(true)} scannedCode={navigationData?.scannedCode || null} scanTimestamp={navigationData?.timestamp || null} empresaId={currentCompany!.id} />;
       default:
         return null;
     }

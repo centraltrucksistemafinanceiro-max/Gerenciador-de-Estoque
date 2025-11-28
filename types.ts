@@ -13,7 +13,6 @@ export interface Produto extends BaseRecord {
   descricao: string;
   valor: number;
   quantidade: number;
-  pecasPorPacote: number; // New field
   localizacao: string;
   status: 'ativo' | 'inativo';
   codigos_alternativos: string[];
@@ -94,7 +93,8 @@ export interface LabelPreset {
 
 export interface ProdutoParaImpressao {
   produto: Produto;
-  quantidade: number;
+  quantidade: number; // How many labels to print
+  quantidadeImpressa: number; // The quantity to display on the label
 }
 
 export type ContagemStatus = 'em andamento' | 'finalizada';

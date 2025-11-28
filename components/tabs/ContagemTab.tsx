@@ -3,7 +3,7 @@ import { pocketbaseService } from '../../services/pocketbaseService';
 import type { Produto, ContagemEstoque, ContagemEstoqueItem } from '../../types';
 import { formatDate } from '../../utils/formatters';
 import Spinner from '../Spinner';
-import { PlusIcon, PrintIcon, ClipboardCheckIcon, QrCodeIcon, ChevronLeftIcon, AlertTriangleIcon } from '../icons/Icon';
+import { PlusIcon, PrintIcon, ClipboardCheckIcon, QrCodeIcon, ChevronLeftIcon, AlertTriangleIcon, SearchIcon } from '../icons/Icon';
 import HelpIcon from '../HelpIcon';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -12,11 +12,12 @@ interface ContagemTabProps {
   showToast: (message: string, type: 'success' | 'error' | 'warning') => void;
   scannedCode: string | null;
   scanTimestamp: number | null;
+  onScanOpen: () => void;
 }
 
 type ViewState = 'loading' | 'list' | 'create' | 'counting' | 'review';
 
-export const ContagemTab: React.FC<ContagemTabProps> = ({ empresaId, showToast, scannedCode, scanTimestamp }) => {
+export const ContagemTab: React.FC<ContagemTabProps> = ({ empresaId, showToast, scannedCode, scanTimestamp, onScanOpen }) => {
   const { currentUser } = useAuth();
   const [viewState, setViewState] = useState<ViewState>('loading');
   const [contagens, setContagens] = useState<ContagemEstoque[]>([]);
@@ -202,10 +203,10 @@ export const ContagemTab: React.FC<ContagemTabProps> = ({ empresaId, showToast, 
                           </span>
                       </div>
                   )) : (
-                      <div className="text-center p-10 rounded-lg shadow-md" style={{ backgroundColor: 'var(--color-card)' }}>
-                          <ClipboardCheckIcon className="mx-auto w-12 h-12 mb-4" style={{color: 'var(--color-text-secondary)'}} />
-                          <p style={{color: 'var(--color-text-secondary)'}}>Nenhuma contagem de estoque iniciada.</p>
-                      </div>
+                       <div className="text-center p-10 rounded-lg shadow-md" style={{ backgroundColor: 'var(--color-card)' }}>
+                           <ClipboardCheckIcon className="mx-auto w-12 h-12 mb-4" style={{color: 'var(--color-text-secondary)'}} />
+                           <p style={{color: 'var(--color-text-secondary)'}}>Nenhuma contagem de estoque iniciada.</p>
+                       </div>
                   )}
               </div>
           </div>
@@ -259,10 +260,28 @@ export const ContagemTab: React.FC<ContagemTabProps> = ({ empresaId, showToast, 
           
           {/* Add Item Form */}
           <div className="p-4 rounded-lg mb-6 shadow-md" style={{ backgroundColor: 'var(--color-card)', border: '1px solid var(--color-border)' }}>
-             <div className="flex flex-col sm:flex-row gap-2 mb-4">
-                 <input type="text" value={codigoBusca} onChange={e => setCodigoBusca(e.target.value.toUpperCase())} onBlur={e => handleSearchProduto(e.target.value)} placeholder="Digite ou leia o código" className="flex-grow px-4 py-2" style={{ backgroundColor: 'var(--color-background)', color: 'var(--color-text)', border: '1px solid var(--color-border)' }}/>
-                 <button onClick={() => document.querySelector<HTMLButtonElement>('button[title="Ler QR Code"]')?.click()} className="btn-primary flex items-center justify-center gap-2"><QrCodeIcon/> Ler QR Code</button>
-             </div>
+             <form onSubmit={(e) => { e.preventDefault(); handleSearchProduto(codigoBusca); }} className="flex flex-col sm:flex-row gap-2 mb-4">
+                 <input
+                    type="text"
+                    value={codigoBusca}
+                    onChange={e => setCodigoBusca(e.target.value.toUpperCase())}
+                    placeholder="Digite o código do produto"
+                    className="flex-grow px-4 py-2"
+                    style={{ backgroundColor: 'var(--color-background)', color: 'var(--color-text)', border: '1px solid var(--color-border)' }}
+                 />
+                 <button type="submit" disabled={isProcessing} className="btn-primary flex items-center justify-center gap-2">
+                    <SearchIcon className="w-5 h-5"/> Buscar
+                 </button>
+                 <button
+                    type="button"
+                    onClick={onScanOpen}
+                    className="p-2 flex items-center justify-center"
+                    style={{ backgroundColor: 'var(--color-border)' }}
+                    title="Escanear Código"
+                 >
+                    <QrCodeIcon className="w-5 h-5" />
+                 </button>
+             </form>
              {isProcessing && !produtoBusca && <Spinner />}
              {produtoBusca && (
                 <form onSubmit={handleAddItem} className="mt-4 pt-4 border-t space-y-4" style={{borderColor: 'var(--color-border)'}}>

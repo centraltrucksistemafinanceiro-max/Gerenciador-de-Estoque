@@ -110,9 +110,7 @@ export const InventarioTab: React.FC<InventarioTabProps> = ({ empresaId, onNavig
             'Código': p.codigo,
             'Descrição': p.descricao,
             'Status': p.status.toUpperCase(),
-            'Qtd. (Pct)': p.quantidade,
-            'Und/Pct': p.pecasPorPacote,
-            'Total Peças': p.quantidade * p.pecasPorPacote,
+            'Qtd': p.quantidade,
             'Localização': p.localizacao,
             'Valor Unitário': p.valor,
             'Valor Total': p.valor * p.quantidade,
@@ -287,8 +285,7 @@ export const InventarioTab: React.FC<InventarioTabProps> = ({ empresaId, onNavig
               <SortableHeader sortableKey="codigo" label="Código" />
               <SortableHeader sortableKey="descricao" label="Descrição" />
               <SortableHeader sortableKey="status" label="Status" className="text-center" />
-              <SortableHeader sortableKey="quantidade" label="Qtd. (Pct.)" className="text-center" />
-              <th className="p-4 font-semibold text-center">Total Peças</th>
+              <SortableHeader sortableKey="quantidade" label="Qtd." className="text-center" />
               <SortableHeader sortableKey="localizacao" label="Localização" />
               <SortableHeader sortableKey="valor" label="Valor Unit." className="text-right" />
               <th className="p-4 font-semibold text-right">Valor Total</th>
@@ -298,7 +295,7 @@ export const InventarioTab: React.FC<InventarioTabProps> = ({ empresaId, onNavig
           <tbody>
             {isLoading && (
               <tr>
-                <td colSpan={9} className="text-center p-8"><Spinner/></td>
+                <td colSpan={8} className="text-center p-8"><Spinner/></td>
               </tr>
             )}
             {!isLoading && produtos.map((produto) => {
@@ -319,7 +316,6 @@ export const InventarioTab: React.FC<InventarioTabProps> = ({ empresaId, onNavig
                    </span>
                 </td>
                 <td className="p-4 text-center align-middle">{produto.quantidade}</td>
-                <td className="p-4 text-center font-bold align-middle">{(produto.quantidade * (produto.pecasPorPacote || 1))}</td>
                 <td className="p-4 font-mono align-middle">{produto.localizacao}</td>
                 <td className="p-4 text-right align-middle">{formatCurrency(produto.valor)}</td>
                 <td className="p-4 text-right font-semibold align-middle">{formatCurrency(produto.valor * produto.quantidade)}</td>
@@ -347,13 +343,13 @@ export const InventarioTab: React.FC<InventarioTabProps> = ({ empresaId, onNavig
             )})}
              {!isLoading && produtos.length === 0 && (
                 <tr>
-                    <td colSpan={9} className="text-center p-8" style={{color: 'var(--color-text-secondary)'}}>Nenhum produto encontrado.</td>
+                    <td colSpan={8} className="text-center p-8" style={{color: 'var(--color-text-secondary)'}}>Nenhum produto encontrado.</td>
                 </tr>
              )}
           </tbody>
           <tfoot>
             <tr className="border-t" style={{borderColor: 'var(--color-border)', backgroundColor: 'var(--color-background)'}}>
-                <td colSpan={7} className="p-4 text-right font-bold text-lg">TOTAL DO ESTOQUE (filtrado)</td>
+                <td colSpan={6} className="p-4 text-right font-bold text-lg">TOTAL DO ESTOQUE (filtrado)</td>
                 <td className="p-4 text-right font-bold text-lg" style={{color: 'var(--color-primary)'}}>{formatCurrency(valorTotalInventario)}</td>
                 <td className="no-print"></td>
             </tr>

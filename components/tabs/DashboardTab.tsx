@@ -68,7 +68,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({ empresaId, showToast
   const kpis = useMemo(() => {
     const valorTotal = activeProdutos.reduce((acc, p) => acc + (p.valor * p.quantidade), 0);
     const totalItens = activeProdutos.length;
-    const totalPecas = activeProdutos.reduce((acc, p) => acc + (p.quantidade * (p.pecasPorPacote || 1)), 0);
+    const totalPecas = activeProdutos.reduce((acc, p) => acc + p.quantidade, 0);
     const estoqueBaixo = activeProdutos.filter(p => p.quantidade <= ESTOQUE_BAIXO_THRESHOLD).length;
     return { valorTotal, totalItens, totalPecas, estoqueBaixo };
   }, [activeProdutos]);
