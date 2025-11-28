@@ -127,3 +127,11 @@ export interface User extends BaseRecord {
   // Custom fields
   role: UserRole;
 }
+
+export interface EntradaLoteValidada {
+  status: 'ok' | 'nao_encontrado' | 'erro';
+  produto?: Produto;
+  quantidade: number;
+  codigoInput: string;
+  mensagemErro?: string;
+}

@@ -1,5 +1,5 @@
 import PocketBase, { RecordModel } from 'pocketbase';
-import type { User, Empresa, Produto, Movimentacao, Separacao, SeparacaoItem, ContagemEstoque, ContagemEstoqueItem, MovimentacaoTipo } from '../types';
+import type { User, Empresa, Produto, Movimentacao, Separacao, SeparacaoItem, ContagemEstoque, ContagemEstoqueItem, MovimentacaoTipo, EntradaLoteValidada } from '../types';
 
 const pb = new PocketBase('https://sistemaB.fs-sistema.cloud/');
 
@@ -245,6 +245,69 @@ export const pocketbaseService = {
             expand: 'usuario'
         });
     },
+
+    async validarEntradasEmLote(empresaId: string, itens: { codigo: string; quantidade: number }[]): Promise<EntradaLoteValidada[]> {
+        if (itens.length === 0) return [];
+        
+        const codigos = itens.map(i => `codigo = "${i.codigo}"`).join(' || ');
+        const filter = `empresa = "${empresaId}" && (${codigos})`;
+        
+        const produtosEncontrados = await pb.collection('produtos').getFullList<Produto>({ filter });
+        const produtosMap = new Map(produtosEncontrados.map(p => [p.codigo, p]));
+
+        return itens.map(item => {
+            // FIX: Explicitly cast `produto` to resolve type inference issues.
+            const produto = produtosMap.get(item.codigo) as Produto | undefined;
+            if (produto) {
+                if (produto.status === 'inativo') {
+                    return {
+                        status: 'erro',
+                        quantidade: item.quantidade,
+                        codigoInput: item.codigo,
+                        mensagemErro: 'Produto inativo.',
+                    };
+                }
+                return {
+                    status: 'ok',
+                    produto,
+                    quantidade: item.quantidade,
+                    codigoInput: item.codigo,
+                };
+            } else {
+                return {
+                    status: 'nao_encontrado',
+                    quantidade: item.quantidade,
+                    codigoInput: item.codigo,
+                    mensagemErro: 'Código não encontrado.',
+                };
+            }
+        });
+    },
+    
+    async registrarEntradasEmLote(empresaId: string, itensValidados: EntradaLoteValidada[], userId: string): Promise<{ sucesso: number, falha: number }> {
+        let sucesso = 0;
+        const itensParaRegistrar = itensValidados.filter(i => i.status === 'ok' && i.produto);
+
+        for (const item of itensParaRegistrar) {
+            const produto = item.produto!;
+            try {
+                const novaQuantidade = produto.quantidade + item.quantidade;
+                await this.updateQuantidadeProduto(produto.id, novaQuantidade);
+                await this.registrarMovimentacao({
+                    empresa: empresaId,
+                    produto_codigo: produto.codigo,
+                    produto_descricao: produto.descricao,
+                    tipo: 'entrada',
+                    quantidade: item.quantidade,
+                    usuario: userId,
+                });
+                sucesso++;
+            } catch (error) {
+                console.error(`Falha ao registrar entrada para ${produto.codigo}:`, error);
+            }
+        }
+        return { sucesso, falha: itensParaRegistrar.length - sucesso };
+    },
     
     // --- SEPARACAO METHODS ---
     async createSeparacao(data: Partial<Separacao>): Promise<Separacao> {
@@ -267,12 +330,10 @@ export const pocketbaseService = {
     },
     
     async setSeparacaoItems(separacaoId: string, items: Omit<SeparacaoItem, 'id'|'collectionId'|'collectionName'|'created'|'updated'>[]): Promise<void> {
-        // Delete existing items for this separation
         const existingItems = await pb.collection('separacao_itens').getFullList({ filter: `separacao = "${separacaoId}"`, fields: 'id' });
         const deletePromises = existingItems.map(item => pb.collection('separacao_itens').delete(item.id));
         await Promise.all(deletePromises);
 
-        // Create new items sequentially to avoid race conditions
         for (const item of items) {
             await pb.collection('separacao_itens').create(item);
         }
@@ -296,7 +357,7 @@ export const pocketbaseService = {
                      produto_codigo: produto.codigo,
                      produto_descricao: produto.descricao,
                      localizacao: produto.localizacao,
-                     quantidade_requerida: 1, // Ad-hoc items have required = separated
+                     quantidade_requerida: 1,
                      quantidade_separada: 1,
                      quantidade_estoque_inicial: produto.quantidade
                  });
