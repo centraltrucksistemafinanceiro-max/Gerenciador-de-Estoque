@@ -3,7 +3,7 @@ import { pocketbaseService } from '../../services/pocketbaseService';
 import type { Tab, Separacao, SeparacaoItem, Produto, SeparacaoStatus } from '../../types';
 import { formatDate } from '../../utils/formatters';
 import Spinner from '../Spinner';
-import { PlusIcon, PrintIcon, ClipboardListIcon, QrCodeIcon, ChevronLeftIcon, CheckCircleIcon, AlertTriangleIcon } from '../icons/Icon';
+import { PlusIcon, PrintIcon, ClipboardListIcon, QrCodeIcon, ChevronLeftIcon, CheckCircleIcon, AlertTriangleIcon, TrashIcon } from '../icons/Icon';
 import HelpIcon from '../HelpIcon';
 import { useAuth } from '../../hooks/useAuth';
 
@@ -125,7 +125,7 @@ export const SeparacaoTab: React.FC<SeparacaoTabProps> = ({ empresaId, showToast
             const newItemsMap = new Map<string, ValidatedItem>();
             // Add previous items
             prev.forEach(item => newItemsMap.set(item.codigoInput.toUpperCase(), item));
-            // Add new/updated items
+            // Add new/updated items, replacing duplicates
             results.forEach(item => newItemsMap.set(item.codigoInput.toUpperCase(), item));
             return Array.from(newItemsMap.values());
         });
@@ -164,7 +164,7 @@ export const SeparacaoTab: React.FC<SeparacaoTabProps> = ({ empresaId, showToast
 
   const handleProcessSingleItem = async (e: React.FormEvent) => {
     e.preventDefault();
-    const form = e.currentTarget as HTMLFormElement; // Store form reference
+    const form = e.currentTarget as HTMLFormElement;
     const codigo = (form.elements.namedItem('codigo') as HTMLInputElement).value;
     const quantidade = parseInt((form.elements.namedItem('quantidade') as HTMLInputElement).value);
     
@@ -181,6 +181,32 @@ export const SeparacaoTab: React.FC<SeparacaoTabProps> = ({ empresaId, showToast
     form.reset();
   };
 
+  const handleUpdateValidatedItemQuantity = (indexToUpdate: number, newQuantityStr: string) => {
+    const newQuantity = parseInt(newQuantityStr, 10);
+    if (isNaN(newQuantity) || newQuantity < 0) return;
+
+    setValidatedItems(prev => {
+        const newItems = [...prev];
+        const item = newItems[indexToUpdate];
+        if (!item) return prev;
+
+        item.quantidadeRequerida = newQuantity;
+
+        if (item.produto) {
+            if (item.produto.quantidade < newQuantity) {
+                item.status = 'insufficient_stock';
+            } else {
+                item.status = 'found';
+            }
+        }
+        
+        return newItems;
+    });
+  };
+
+  const handleRemoveValidatedItem = (indexToRemove: number) => {
+    setValidatedItems(prev => prev.filter((_, index) => index !== indexToRemove));
+  };
   
   const handleConfirmItems = async () => {
       if (!activeSeparacao) return;
@@ -414,7 +440,7 @@ export const SeparacaoTab: React.FC<SeparacaoTabProps> = ({ empresaId, showToast
     );
   }
   
-  if ((viewState === 'defineItems' || viewState === 'reviewItems') && activeSeparacao) {
+  if (viewState === 'defineItems' && activeSeparacao) {
       const itemsToAddCount = validatedItems.filter(i => i.status !== 'not_found').length;
 
       return (
@@ -449,7 +475,7 @@ export const SeparacaoTab: React.FC<SeparacaoTabProps> = ({ empresaId, showToast
                         <h3 className="font-semibold mb-2">Lista de Coleta ({itemsToAddCount} válidos)</h3>
                         <div className="max-h-60 overflow-y-auto border rounded-md" style={{borderColor: 'var(--color-border)'}}>
                           <table className="w-full text-left text-sm">
-                            <thead className="sticky top-0" style={{backgroundColor: 'var(--color-background)'}}><tr><th className="p-2">Status</th><th className="p-2">Código</th><th className="p-2">Descrição</th><th className="p-2 text-center">Pedido</th><th className="p-2 text-center">Estoque</th></tr></thead>
+                            <thead className="sticky top-0" style={{backgroundColor: 'var(--color-background)'}}><tr><th className="p-2">Status</th><th className="p-2">Código</th><th className="p-2">Descrição</th><th className="p-2 text-center">Pedido</th><th className="p-2 text-center">Estoque</th><th className="p-2 text-center">Ações</th></tr></thead>
                             <tbody>
                                 {validatedItems.map((item, idx) => {
                                     let statusNode;
@@ -463,8 +489,22 @@ export const SeparacaoTab: React.FC<SeparacaoTabProps> = ({ empresaId, showToast
                                         <td className="p-2">{statusNode}</td>
                                         <td className="p-2 font-mono">{item.codigoInput}</td>
                                         <td className="p-2">{item.produto?.descricao || '-'}</td>
-                                        <td className="p-2 text-center font-bold">{item.quantidadeRequerida}</td>
+                                        <td className="p-2 text-center font-bold">
+                                            <input
+                                                type="number"
+                                                value={item.quantidadeRequerida}
+                                                onChange={(e) => handleUpdateValidatedItemQuantity(idx, e.target.value)}
+                                                className="w-20 p-1 text-center rounded"
+                                                style={{ backgroundColor: 'var(--color-background)', border: '1px solid var(--color-border)' }}
+                                                min="1"
+                                            />
+                                        </td>
                                         <td className="p-2 text-center">{item.produto?.quantidade ?? '-'}</td>
+                                        <td className="p-2 text-center">
+                                            <button onClick={() => handleRemoveValidatedItem(idx)} className="p-1 text-red-400 hover:text-red-300" title="Remover Item">
+                                                <TrashIcon className="w-5 h-5" />
+                                            </button>
+                                        </td>
                                     </tr>
                                 )})}
                             </tbody>
