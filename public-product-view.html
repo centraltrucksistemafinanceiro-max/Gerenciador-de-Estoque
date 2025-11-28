@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detalhes do Produto</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+    <div id="loading" class="text-gray-500">Carregando...</div>
+    <div id="error" class="hidden text-center">
+        <h1 class="text-2xl font-bold text-red-600">Erro</h1>
+        <p id="error-message" class="text-gray-700 mt-2"></p>
+    </div>
+    <div id="product-card" class="hidden bg-white shadow-lg rounded-lg p-6 w-full max-w-sm">
+        <h1 class="text-2xl font-bold text-gray-800" id="product-description"></h1>
+        <p class="text-sm text-gray-500 mb-4">Detalhes do Produto</p>
+        <div class="space-y-3 text-gray-700">
+            <div class="flex justify-between border-b pb-2">
+                <span class="font-semibold">Código:</span>
+                <span class="font-mono" id="product-code"></span>
+            </div>
+            <div class="flex justify-between border-b pb-2">
+                <span class="font-semibold">Localização:</span>
+                <span class="font-mono" id="product-location"></span>
+            </div>
+             <div class="flex justify-between">
+                <span class="font-semibold">Quantidade em Estoque:</span>
+                <span class="font-bold" id="product-quantity"></span>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        const API_URL = 'https://sistemaB.fs-sistema.cloud/api/';
+
+        const loadingDiv = document.getElementById('loading');
+        const errorDiv = document.getElementById('error');
+        const errorMessage = document.getElementById('error-message');
+        const productCard = document.getElementById('product-card');
+
+        async function fetchProductDetails() {
+            try {
+                const params = new URLSearchParams(window.location.search);
+                const productId = params.get('id');
+
+                if (!productId) {
+                    throw new Error('ID do produto não encontrado na URL.');
+                }
+
+                const response = await fetch(`${API_URL}collections/produtos/records/${productId}`);
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.message || 'Produto não encontrado.');
+                }
+
+                document.getElementById('product-description').textContent = data.descricao;
+                document.getElementById('product-code').textContent = data.codigo;
+                document.getElementById('product-location').textContent = data.localizacao;
+                document.getElementById('product-quantity').textContent = data.quantidade;
+                
+                loadingDiv.classList.add('hidden');
+                productCard.classList.remove('hidden');
+
+            } catch (err) {
+                loadingDiv.classList.add('hidden');
+                errorMessage.textContent = err.message;
+                errorDiv.classList.remove('hidden');
+            }
+        }
+
+        fetchProductDetails();
+    </script>
+</body>
+</html>

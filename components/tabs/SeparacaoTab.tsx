@@ -56,7 +56,11 @@ export const SeparacaoTab: React.FC<SeparacaoTabProps> = ({ empresaId, showToast
     try {
       const data = await pocketbaseService.getSeparacoes(empresaId);
       setSeparacoes(data);
-    } catch (error) {
+    } catch (error: any) {
+      if (error && error.isAbort) {
+        console.log("Fetch separações aborted");
+        return;
+      }
       showToast('Erro ao carregar separações.', 'error');
     } finally {
         setViewState('list');
@@ -96,36 +100,45 @@ export const SeparacaoTab: React.FC<SeparacaoTabProps> = ({ empresaId, showToast
 
   const processAndValidateItems = useCallback(async (itemsToProcess: ParsedItem[]) => {
     setIsProcessing(true);
-    const validationPromises = itemsToProcess.map(async (item): Promise<ValidatedItem> => {
-      const produto = await pocketbaseService.findProdutoByCodigo(empresaId, item.codigo);
-      let status: ValidatedItem['status'] = 'not_found';
-      if (produto) {
-        if (produto.status === 'inativo') {
-          status = 'not_found';
-        } else if (produto.quantidade < item.quantidade) {
-          status = 'insufficient_stock';
-        } else {
-          status = 'found';
+    try {
+        const validationPromises = itemsToProcess.map(async (item): Promise<ValidatedItem> => {
+        const produto = await pocketbaseService.findProdutoByCodigo(empresaId, item.codigo);
+        let status: ValidatedItem['status'] = 'not_found';
+        if (produto) {
+            if (produto.status === 'inativo') {
+            status = 'not_found';
+            } else if (produto.quantidade < item.quantidade) {
+            status = 'insufficient_stock';
+            } else {
+            status = 'found';
+            }
         }
-      }
-      return {
-        status,
-        produto: produto || undefined,
-        quantidadeRequerida: item.quantidade,
-        codigoInput: item.codigo,
-      };
-    });
-    const results = await Promise.all(validationPromises);
-    setValidatedItems(prev => {
-        const newItemsMap = new Map<string, ValidatedItem>();
-        // Add previous items
-        prev.forEach(item => newItemsMap.set(item.codigoInput.toUpperCase(), item));
-        // Add new/updated items
-        results.forEach(item => newItemsMap.set(item.codigoInput.toUpperCase(), item));
-        return Array.from(newItemsMap.values());
-    });
-    setIsProcessing(false);
-  }, [empresaId]);
+        return {
+            status,
+            produto: produto || undefined,
+            quantidadeRequerida: item.quantidade,
+            codigoInput: item.codigo,
+        };
+        });
+        const results = await Promise.all(validationPromises);
+        setValidatedItems(prev => {
+            const newItemsMap = new Map<string, ValidatedItem>();
+            // Add previous items
+            prev.forEach(item => newItemsMap.set(item.codigoInput.toUpperCase(), item));
+            // Add new/updated items
+            results.forEach(item => newItemsMap.set(item.codigoInput.toUpperCase(), item));
+            return Array.from(newItemsMap.values());
+        });
+    } catch (error: any) {
+        if (error && error.isAbort) {
+            console.log("Validation fetch aborted");
+            return;
+        }
+        showToast("Erro ao validar itens.", "error");
+    } finally {
+        setIsProcessing(false);
+    }
+  }, [empresaId, showToast]);
 
   const handleProcessPastedData = async () => {
     if (!pastedData.trim()) {
@@ -140,7 +153,12 @@ export const SeparacaoTab: React.FC<SeparacaoTabProps> = ({ empresaId, showToast
         return { codigo, quantidade };
     }).filter(item => item.codigo && item.quantidade > 0);
     
-    await processAndValidateItems(parsedItems);
+    try {
+        await processAndValidateItems(parsedItems);
+    } catch (error: any) {
+        if (error.isAbort) return; // Fail silently
+        showToast('Erro ao processar dados.', 'error');
+    }
     setPastedData(''); // Clear textarea
   };
 
@@ -154,7 +172,12 @@ export const SeparacaoTab: React.FC<SeparacaoTabProps> = ({ empresaId, showToast
         showToast('Preencha o código e a quantidade.', 'warning');
         return;
     }
-    await processAndValidateItems([{ codigo, quantidade }]);
+    try {
+        await processAndValidateItems([{ codigo, quantidade }]);
+    } catch(error: any) {
+        if (error.isAbort) return; // Fail silently
+        showToast('Erro ao processar item.', 'error');
+    }
     form.reset();
   };
 
@@ -169,7 +192,7 @@ export const SeparacaoTab: React.FC<SeparacaoTabProps> = ({ empresaId, showToast
             produto_descricao: item.produto!.descricao,
             localizacao: item.produto!.localizacao,
             quantidade_requerida: item.quantidadeRequerida,
-            quantidade_estoque_inicial: item.produto!.quantidade, // FIX: Include required field
+            quantidade_estoque_inicial: item.produto!.quantidade,
             quantidade_separada: 0,
             separacao: activeSeparacao.separacao.id
         }));
@@ -214,7 +237,12 @@ export const SeparacaoTab: React.FC<SeparacaoTabProps> = ({ empresaId, showToast
             showToast('Separação não encontrada.', 'error');
             loadSeparacoes();
         }
-    } catch (error) {
+    } catch (error: any) {
+        if (error && error.isAbort) {
+            console.log("Select separação fetch aborted");
+            loadSeparacoes(); // Go back to list if aborted
+            return;
+        }
         showToast('Erro ao carregar separação.', 'error');
         loadSeparacoes();
     }

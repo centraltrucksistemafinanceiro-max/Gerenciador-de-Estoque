@@ -124,12 +124,12 @@ export const pocketbaseService = {
     },
     
     async getUniqueProductLocations(empresaId: string): Promise<string[]> {
-        const records = await pb.collection('produtos').getFullList({
+        const records = await pb.collection('produtos').getFullList<Pick<Produto, 'localizacao'>>({
             filter: `empresa = "${empresaId}" && localizacao != ""`,
             fields: 'localizacao',
         });
         
-        const locations = new Set<string>(records.map((r: any) => String(r.localizacao || '').trim()));
+        const locations = new Set<string>(records.map(r => r.localizacao.trim()));
         return Array.from(locations).filter(l => l !== '').sort();
     },
 
@@ -267,12 +267,15 @@ export const pocketbaseService = {
     },
     
     async setSeparacaoItems(separacaoId: string, items: Omit<SeparacaoItem, 'id'|'collectionId'|'collectionName'|'created'|'updated'>[]): Promise<void> {
+        // Delete existing items for this separation
         const existingItems = await pb.collection('separacao_itens').getFullList({ filter: `separacao = "${separacaoId}"`, fields: 'id' });
         const deletePromises = existingItems.map(item => pb.collection('separacao_itens').delete(item.id));
         await Promise.all(deletePromises);
 
-        const createPromises = items.map(item => pb.collection('separacao_itens').create(item));
-        await Promise.all(createPromises);
+        // Create new items sequentially to avoid race conditions
+        for (const item of items) {
+            await pb.collection('separacao_itens').create(item);
+        }
     },
 
     async addItemToSeparacao(separacaoId: string, produtoCodigo: string): Promise<{item: SeparacaoItem, isNew: boolean}> {
