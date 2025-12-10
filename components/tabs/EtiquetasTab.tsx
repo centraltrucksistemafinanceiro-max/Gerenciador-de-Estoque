@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { pocketbaseService } from '../../services/pocketbaseService';
 import type { Produto, ProdutoParaImpressao } from '../../types';
 import Spinner from '../Spinner';
@@ -178,16 +179,80 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
     ? (selectedPreset.width * selectedPreset.labelsPerRow) + (selectedPreset.horizontalGap * (selectedPreset.labelsPerRow - 1)) 
     : 0;
 
+  // Component that renders the actual labels. We use this for both Preview and Portal Print
+  const LabelContent = () => (
+    <div className="flex flex-col">
+      {Array.from({ length: Math.ceil(etiquetasGeradas.length / selectedPreset.labelsPerRow) }).map((_, rowIndex) => (
+        <div key={rowIndex} className="flex flex-row" style={{ 
+            gap: `${selectedPreset.horizontalGap}mm`, 
+            marginBottom: `${selectedPreset.verticalGap}mm`, 
+            width: `${containerWidth}mm` 
+        }}>
+          {etiquetasGeradas.slice(rowIndex * selectedPreset.labelsPerRow, (rowIndex + 1) * selectedPreset.labelsPerRow).map((produto, labelIndex) => {
+            return (
+                <div key={`${produto.id}-${rowIndex}-${labelIndex}`} className="text-black bg-white flex flex-col text-center font-mono box-border justify-between"
+                    style={{
+                        width: `${selectedPreset.width}mm`,
+                        height: `${selectedPreset.height}mm`,
+                        fontFamily: "'Courier New', Courier, monospace",
+                        fontWeight: 'bold',
+                        padding: '1.5mm',
+                        overflow: 'hidden',
+                        border: '1px dotted #ccc' // Light border for preview/print cut guide (optional)
+                    }}>
+                    
+                    <div className="flex flex-col items-center">
+                        <QRCodeGenerator value={produto.codigo} style={{ width: `${selectedPreset.qrCodeSize}mm`, height: `${selectedPreset.qrCodeSize}mm` }} />
+                        <p className="leading-tight mt-1" style={{ fontSize: `${selectedPreset.codeFontSize}pt`, margin: 0 }}>{produto.codigo}</p>
+                    </div>
+
+                    <p className="leading-tight" style={{ 
+                        fontSize: `${selectedPreset.descriptionFontSize}pt`,
+                        overflow: 'hidden', 
+                        display: '-webkit-box', 
+                        WebkitBoxOrient: 'vertical', 
+                        WebkitLineClamp: 2, 
+                        wordBreak: 'break-word',
+                        margin: 'auto 0'
+                    }}>
+                        {produto.descricao}
+                    </p>
+
+                    <div className="flex justify-between w-full" style={{ fontSize: `${selectedPreset.footerFontSize}pt` }}>
+                        <span>loc: {produto.localizacao}</span>
+                        <span>Qtd: {produto.quantidadeImpressa}</span>
+                    </div>
+                </div>
+            )
+          })}
+        </div>
+      ))}
+    </div>
+  );
+
   return (
     <div className="animate-fade-in max-w-5xl mx-auto">
       <style>{`
+        /* Hide the print root by default on screen */
+        #print-root {
+          display: none;
+        }
+
         @media print {
-          /* Hide everything except the printable area */
-          body * { 
-            visibility: hidden; 
+          /* Hide the entire React App root during print */
+          #root { 
+            display: none !important; 
           }
-          #printable-labels, #printable-labels * { 
-            visibility: visible; 
+          
+          /* Show the print root and position it for printing */
+          #print-root { 
+            display: block !important; 
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: auto;
+            height: auto;
+            background: white;
           }
           
           /* Reset page margins to 0 to prevent "Shrink to Fit" issues */
@@ -197,19 +262,21 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
           }
           
           html, body {
-            margin: 0;
-            padding: 0;
+            margin: 0 !important;
+            padding: 0 !important;
+            width: auto !important;
+            height: auto !important;
+            overflow: visible !important;
+            background: white !important;
           }
 
-          /* Position the printable area at the absolute top-left */
-          #printable-labels { 
-            position: absolute; 
-            left: 0; 
-            top: 0;
-            width: max-content; /* Ensure container takes exact required width */
-          }
-
+          /* Hide UI elements marked as no-print (extra safety) */
           .no-print { display: none !important; }
+          
+          /* Remove borders from labels when printing if desired, or keep for cutting guides */
+          #print-root div[style*="border: 1px dotted"] {
+             border: none !important; /* Remove guide borders on print */
+          }
         }
       `}</style>
 
@@ -340,63 +407,27 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
       </div>
       
       {etiquetasGeradas.length > 0 && selectedPreset && (
-          <div className="mt-8 print:mt-0">
+          <div className="mt-8">
             <div className="no-print flex flex-col sm:flex-row justify-between items-center mb-4 gap-4 p-4 rounded-lg shadow-md" style={{backgroundColor: 'var(--color-card)', border: '1px solid var(--color-border)'}}>
-                 <h3 className="text-lg font-bold text-center sm:text-left">Pré-visualização pronta para impressão</h3>
+                 <h3 className="text-lg font-bold text-center sm:text-left">Pré-visualização</h3>
                  <div className="flex items-center gap-4">
                     <button onClick={handleClearAll} className="px-4 py-2 rounded-lg font-semibold transition-all" style={{backgroundColor: 'var(--color-border)', color: 'var(--color-text-secondary)'}}>Limpar Tudo</button>
                     <button onClick={handlePrint} className="btn-primary flex items-center justify-center gap-2"><PrintIcon/> Imprimir</button>
                  </div>
             </div>
             <div className="no-print mb-4 p-2 bg-yellow-500/10 text-yellow-500 rounded text-sm text-center">
-                Dica: Na janela de impressão, defina as <strong>Margens</strong> como <strong>"Nenhuma"</strong> e a <strong>Escala</strong> como <strong>100%</strong>.
+                Dica: Na janela de impressão, defina as <strong>Margens</strong> como <strong>"Nenhuma"</strong> e a <strong>Escala</strong> como <strong>100%</strong> (Tamanho Real).
             </div>
-            <div id="printable-labels" className="flex flex-col">
-              {Array.from({ length: Math.ceil(etiquetasGeradas.length / selectedPreset.labelsPerRow) }).map((_, rowIndex) => (
-                <div key={rowIndex} className="flex flex-row" style={{ 
-                    gap: `${selectedPreset.horizontalGap}mm`, 
-                    marginBottom: `${selectedPreset.verticalGap}mm`, 
-                    width: `${containerWidth}mm` 
-                }}>
-                  {etiquetasGeradas.slice(rowIndex * selectedPreset.labelsPerRow, (rowIndex + 1) * selectedPreset.labelsPerRow).map((produto, labelIndex) => {
-                    return (
-                        <div key={`${produto.id}-${rowIndex}-${labelIndex}`} className="text-black bg-white flex flex-col text-center font-mono box-border justify-between"
-                            style={{
-                                width: `${selectedPreset.width}mm`,
-                                height: `${selectedPreset.height}mm`,
-                                fontFamily: "'Courier New', Courier, monospace",
-                                fontWeight: 'bold',
-                                padding: '1.5mm',
-                                overflow: 'hidden'
-                            }}>
-                            
-                            <div className="flex flex-col items-center">
-                                <QRCodeGenerator value={produto.codigo} style={{ width: `${selectedPreset.qrCodeSize}mm`, height: `${selectedPreset.qrCodeSize}mm` }} />
-                                <p className="leading-tight mt-1" style={{ fontSize: `${selectedPreset.codeFontSize}pt`, margin: 0 }}>{produto.codigo}</p>
-                            </div>
-
-                            <p className="leading-tight" style={{ 
-                                fontSize: `${selectedPreset.descriptionFontSize}pt`,
-                                overflow: 'hidden', 
-                                display: '-webkit-box', 
-                                WebkitBoxOrient: 'vertical', 
-                                WebkitLineClamp: 2, 
-                                wordBreak: 'break-word',
-                                margin: 'auto 0'
-                            }}>
-                                {produto.descricao}
-                            </p>
-
-                            <div className="flex justify-between w-full" style={{ fontSize: `${selectedPreset.footerFontSize}pt` }}>
-                                <span>loc: {produto.localizacao}</span>
-                                <span>Qtd: {produto.quantidadeImpressa}</span>
-                            </div>
-                        </div>
-                    )
-                  })}
-                </div>
-              ))}
+            
+            {/* Visualização em tela (Preview) */}
+            <div className="overflow-auto border p-4 bg-gray-100 rounded">
+                <LabelContent />
             </div>
+
+            {/* Portal para Impressão (Isolado do Layout Principal) */}
+            {document.getElementById('print-root') && 
+                createPortal(<LabelContent />, document.getElementById('print-root')!)
+            }
         </div>
       )}
     </div>
