@@ -182,17 +182,34 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
     <div className="animate-fade-in max-w-5xl mx-auto">
       <style>{`
         @media print {
-          body * { visibility: hidden; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          #printable-labels, #printable-labels * { visibility: visible; }
+          /* Hide everything except the printable area */
+          body * { 
+            visibility: hidden; 
+          }
+          #printable-labels, #printable-labels * { 
+            visibility: visible; 
+          }
+          
+          /* Reset page margins to 0 to prevent "Shrink to Fit" issues */
+          @page { 
+            size: auto; 
+            margin: 0mm; 
+          }
+          
+          html, body {
+            margin: 0;
+            padding: 0;
+          }
+
+          /* Position the printable area at the absolute top-left */
           #printable-labels { 
             position: absolute; 
-            left: 3mm; 
+            left: 0; 
             top: 0;
-            transform: scale(1.1);
-            transform-origin: top left;
+            width: max-content; /* Ensure container takes exact required width */
           }
+
           .no-print { display: none !important; }
-          @page { size: auto; margin: 1mm; }
         }
       `}</style>
 
@@ -330,6 +347,9 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
                     <button onClick={handleClearAll} className="px-4 py-2 rounded-lg font-semibold transition-all" style={{backgroundColor: 'var(--color-border)', color: 'var(--color-text-secondary)'}}>Limpar Tudo</button>
                     <button onClick={handlePrint} className="btn-primary flex items-center justify-center gap-2"><PrintIcon/> Imprimir</button>
                  </div>
+            </div>
+            <div className="no-print mb-4 p-2 bg-yellow-500/10 text-yellow-500 rounded text-sm text-center">
+                Dica: Na janela de impressão, defina as <strong>Margens</strong> como <strong>"Nenhuma"</strong> e a <strong>Escala</strong> como <strong>100%</strong>.
             </div>
             <div id="printable-labels" className="flex flex-col">
               {Array.from({ length: Math.ceil(etiquetasGeradas.length / selectedPreset.labelsPerRow) }).map((_, rowIndex) => (
