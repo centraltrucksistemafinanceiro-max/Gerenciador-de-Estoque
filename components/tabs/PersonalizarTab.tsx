@@ -3,6 +3,7 @@ import type { Tema, LabelPreset } from '../../types';
 import { useLabelConfig } from '../../hooks/useLabelConfig';
 import Spinner from '../Spinner';
 import HelpIcon from '../HelpIcon';
+import QRCodeGenerator from '../QRCodeGenerator';
 
 interface PersonalizarTabProps {
   theme: Tema;
@@ -37,6 +38,8 @@ const LabelPresetForm: React.FC<{
         name: preset?.name || '',
         width: preset?.width || 40,
         height: preset?.height || 40,
+        horizontalGap: preset?.horizontalGap || 0,
+        verticalGap: preset?.verticalGap || 0,
         qrCodeSize: preset?.qrCodeSize || 22,
         codeFontSize: preset?.codeFontSize || 12,
         descriptionFontSize: preset?.descriptionFontSize || 9,
@@ -59,8 +62,7 @@ const LabelPresetForm: React.FC<{
         descricao: 'Produto de Exemplo para Visualização',
         localizacao: '01.01 A',
     };
-    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(dummyProduct.codigo)}&qzone=1&margin=0`;
-
+    
     return (
         <div className="mt-4 p-4 rounded-md border" style={{backgroundColor: 'var(--color-background)', borderColor: 'var(--color-border)'}}>
             <h4 className="font-semibold mb-4">{preset?.id ? 'Editar Configuração' : 'Nova Configuração'}</h4>
@@ -70,9 +72,11 @@ const LabelPresetForm: React.FC<{
                         <label htmlFor="name" className="text-sm">Nome</label>
                         <input type="text" name="name" id="name" value={formData.name} onChange={handleChange} required className="w-full p-2 mt-1 rounded text-sm" style={{ backgroundColor: 'var(--color-card)', border: '1px solid var(--color-border)' }}/>
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                         <div><label className="text-sm">Largura (mm)</label><input type="number" name="width" value={formData.width} onChange={handleChange} required className="w-full p-2 mt-1 rounded text-sm" style={{ backgroundColor: 'var(--color-card)', border: '1px solid var(--color-border)' }}/></div>
                         <div><label className="text-sm">Altura (mm)</label><input type="number" name="height" value={formData.height} onChange={handleChange} required className="w-full p-2 mt-1 rounded text-sm" style={{ backgroundColor: 'var(--color-card)', border: '1px solid var(--color-border)' }}/></div>
+                        <div><label className="text-sm">Gap Horiz. (mm)</label><input type="number" name="horizontalGap" value={formData.horizontalGap} onChange={handleChange} required className="w-full p-2 mt-1 rounded text-sm" style={{ backgroundColor: 'var(--color-card)', border: '1px solid var(--color-border)' }}/></div>
+                        <div><label className="text-sm">Gap Vert. (mm)</label><input type="number" name="verticalGap" value={formData.verticalGap} onChange={handleChange} required className="w-full p-2 mt-1 rounded text-sm" style={{ backgroundColor: 'var(--color-card)', border: '1px solid var(--color-border)' }}/></div>
                         <div><label className="text-sm">QR Code (mm)</label><input type="number" name="qrCodeSize" value={formData.qrCodeSize} onChange={handleChange} required className="w-full p-2 mt-1 rounded text-sm" style={{ backgroundColor: 'var(--color-card)', border: '1px solid var(--color-border)' }}/></div>
                         <div><label className="text-sm">Fonte Cód. (pt)</label><input type="number" name="codeFontSize" value={formData.codeFontSize} onChange={handleChange} required className="w-full p-2 mt-1 rounded text-sm" style={{ backgroundColor: 'var(--color-card)', border: '1px solid var(--color-border)' }}/></div>
                         <div><label className="text-sm">Fonte Desc. (pt)</label><input type="number" name="descriptionFontSize" value={formData.descriptionFontSize} onChange={handleChange} required className="w-full p-2 mt-1 rounded text-sm" style={{ backgroundColor: 'var(--color-card)', border: '1px solid var(--color-border)' }}/></div>
@@ -101,7 +105,7 @@ const LabelPresetForm: React.FC<{
                             }}>
                             
                             <div className="flex flex-col items-center">
-                                <img src={qrCodeUrl} alt="QR Code Preview" style={{ width: `${formData.qrCodeSize}mm`, height: `${formData.qrCodeSize}mm` }}/>
+                                <QRCodeGenerator value={dummyProduct.codigo} style={{ width: `${formData.qrCodeSize}mm`, height: `${formData.qrCodeSize}mm` }}/>
                                 <p className="leading-tight mt-1" style={{ fontSize: `${formData.codeFontSize}pt` }}>{dummyProduct.codigo}</p>
                             </div>
 
@@ -172,7 +176,7 @@ const LabelConfigManager: React.FC = () => {
                             />
                             <div>
                                <p className="font-semibold">{p.name}</p>
-                               <p className="text-xs" style={{color: 'var(--color-text-secondary)'}}>{p.width}x{p.height}mm ({p.labelsPerRow} por linha)</p>
+                               <p className="text-xs" style={{color: 'var(--color-text-secondary)'}}>{p.width}x{p.height}mm ({p.labelsPerRow} col) - Gap: {p.horizontalGap}x{p.verticalGap}mm</p>
                             </div>
                         </div>
                         <div className="flex gap-2">

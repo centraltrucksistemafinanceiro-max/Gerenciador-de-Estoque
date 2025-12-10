@@ -6,6 +6,7 @@ import Spinner from '../Spinner';
 import { PrintIcon, ViewIcon, EditIcon, FileSpreadsheetIcon, ArrowUpIcon, ArrowDownIcon } from '../icons/Icon';
 import HelpIcon from '../HelpIcon';
 import { useDebounce } from '../../hooks/useDebounce';
+import QRCodeGenerator from '../QRCodeGenerator';
 
 // Make TypeScript aware of the XLSX library from the CDN
 declare const XLSX: any;
@@ -299,13 +300,12 @@ export const InventarioTab: React.FC<InventarioTabProps> = ({ empresaId, onNavig
               </tr>
             )}
             {!isLoading && produtos.map((produto) => {
-              const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=50x50&data=${encodeURIComponent(produto.codigo)}&qzone=1&margin=0`;
               return (
               <tr key={produto.id} className="border-t hover:bg-white/5" style={{ borderColor: 'var(--color-border)', opacity: produto.status === 'inativo' ? 0.5 : 1 }}>
                 <td className="p-4 font-mono align-middle">
                     <span className="print:hidden">{produto.codigo}</span>
                     <div className="hidden print:flex print:flex-col print:items-center print:justify-center">
-                        <img src={qrCodeUrl} alt={`QR Code for ${produto.codigo}`} className="w-12 h-12" />
+                        <QRCodeGenerator value={produto.codigo} className="w-12 h-12" />
                         <span className="text-xs mt-1">{produto.codigo}</span>
                     </div>
                 </td>

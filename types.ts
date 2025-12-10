@@ -84,6 +84,8 @@ export interface LabelPreset {
   name: string;
   width: number; // in mm
   height: number; // in mm
+  horizontalGap: number; // in mm (gap between columns)
+  verticalGap: number; // in mm (gap between rows)
   qrCodeSize: number; // in mm
   codeFontSize: number; // in pt
   descriptionFontSize: number; // in pt

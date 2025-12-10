@@ -2,10 +2,12 @@ import { useState, useEffect, useCallback } from 'react';
 import type { LabelPreset } from '../types';
 
 const defaultPreset: LabelPreset = {
-  id: 'default-40x40-2col-v2', // Updated ID to force refresh
+  id: 'default-40x40-2col-v3', // Updated ID to force refresh with new props
   name: '40x40mm (2 Colunas)',
   width: 40,
   height: 40,
+  horizontalGap: 4, // Default gap
+  verticalGap: 3,   // Default gap
   qrCodeSize: 20,
   codeFontSize: 11,
   descriptionFontSize: 9,
@@ -19,7 +21,16 @@ export const useLabelConfig = () => {
   const [presets, setPresets] = useState<LabelPreset[]>(() => {
     try {
       const stored = localStorage.getItem('label-presets');
-      return stored ? JSON.parse(stored) : defaultPresets;
+      if (stored) {
+          // Migration: Ensure old presets have gap properties
+          const parsed = JSON.parse(stored);
+          return parsed.map((p: any) => ({
+              ...p,
+              horizontalGap: p.horizontalGap ?? 0,
+              verticalGap: p.verticalGap ?? 0
+          }));
+      }
+      return defaultPresets;
     } catch (error) {
       console.error('Error reading label presets from localStorage', error);
       return defaultPresets;
@@ -30,7 +41,7 @@ export const useLabelConfig = () => {
     try {
       const stored = localStorage.getItem('active-label-preset-id');
       // If stored ID is from an older default version or null, switch to the new default
-      if (!stored || stored.startsWith('default-') && stored !== defaultPreset.id) {
+      if (!stored || (stored.startsWith('default-') && stored !== defaultPreset.id)) {
           return defaultPreset.id;
       }
       return stored;

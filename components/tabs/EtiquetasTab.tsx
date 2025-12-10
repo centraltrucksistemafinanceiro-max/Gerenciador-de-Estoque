@@ -1,11 +1,11 @@
-
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { pocketbaseService } from '../../services/pocketbaseService';
 import type { Produto, ProdutoParaImpressao } from '../../types';
 import Spinner from '../Spinner';
-import { SearchIcon, PrintIcon, QrCodeIcon, PlusIcon } from '../icons/Icon';
+import { SearchIcon, PrintIcon, QrCodeIcon, PlusIcon, TrashIcon } from '../icons/Icon';
 import { useLabelConfig } from '../../hooks/useLabelConfig';
 import HelpIcon from '../HelpIcon';
+import QRCodeGenerator from '../QRCodeGenerator';
 
 interface EtiquetasTabProps {
     empresaId: string;
@@ -23,6 +23,8 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
   
   // Queue and generation state
   const [quantidadeParaAdicionar, setQuantidadeParaAdicionar] = useState<number | ''>(1);
+  const [quantidadeNoTexto, setQuantidadeNoTexto] = useState<number | ''>(1); // Default to 1 for unit labels
+  
   const [filaImpressao, setFilaImpressao] = useState<ProdutoParaImpressao[]>([]);
   const [etiquetasGeradas, setEtiquetasGeradas] = useState<(Produto & { quantidadeImpressa: number })[]>([]);
   
@@ -36,6 +38,7 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
     setProdutoEncontrado(null);
     setNotFound(false);
     setQuantidadeParaAdicionar(1);
+    setQuantidadeNoTexto(1);
   };
 
   const handleSearch = useCallback(async (searchCodigo: string) => {
@@ -50,6 +53,8 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
       const result = await pocketbaseService.findProdutoByCodigo(empresaId, searchCodigo);
       if (result) {
         setProdutoEncontrado(result);
+        // Default text quantity to 1 (useful for individual tags), user can change to stock if needed
+        setQuantidadeNoTexto(1); 
       } else {
         setNotFound(true);
       }
@@ -77,24 +82,30 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
     if (!produtoEncontrado) return;
 
     const quantNum = Number(quantidadeParaAdicionar);
+    const quantTextoNum = Number(quantidadeNoTexto);
+
     if (isNaN(quantNum) || quantNum <= 0) {
         showToast('A quantidade de etiquetas deve ser um número maior que zero.', 'warning');
         return;
     }
 
     setFilaImpressao(prevFila => {
+      // Allow adding same product multiple times if they have different "printed text" quantity? 
+      // Current logic aggregates by product ID. To support different labels for same product, we'd need unique IDs for queue items.
+      // For simplicity, we just check product ID and update.
+      
       const itemExistenteIndex = prevFila.findIndex(item => item.produto.id === produtoEncontrado.id);
       
       if (itemExistenteIndex > -1) {
         const novaFila = [...prevFila];
         novaFila[itemExistenteIndex].quantidade += quantNum;
+        novaFila[itemExistenteIndex].quantidadeImpressa = quantTextoNum; // Update text preference
         return novaFila;
       } else {
-        // Add to queue with printable quantity pre-filled with stock quantity
         return [...prevFila, { 
             produto: produtoEncontrado, 
-            quantidade: quantNum, 
-            quantidadeImpressa: produtoEncontrado.quantidade 
+            quantidade: quantNum, // Number of labels to print
+            quantidadeImpressa: quantTextoNum // Text printed ON the label (e.g. "Qtd: 1")
         }];
       }
     });
@@ -148,9 +159,24 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
     }
   };
 
+  const handleQuantidadeTextoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    if (value === '') {
+        setQuantidadeNoTexto('');
+    } else {
+        const num = parseInt(value.replace(/[^0-9]/g, ''), 10);
+        if (!isNaN(num)) {
+            setQuantidadeNoTexto(num);
+        }
+    }
+  };
+
   const totalEtiquetasNaFila = useMemo(() => filaImpressao.reduce((sum, item) => sum + item.quantidade, 0), [filaImpressao]);
 
-  const containerWidth = selectedPreset ? (selectedPreset.width * selectedPreset.labelsPerRow) + (5 * (selectedPreset.labelsPerRow - 1)) : 0;
+  // Calculate container width based on columns and GAP
+  const containerWidth = selectedPreset 
+    ? (selectedPreset.width * selectedPreset.labelsPerRow) + (selectedPreset.horizontalGap * (selectedPreset.labelsPerRow - 1)) 
+    : 0;
 
   return (
     <div className="animate-fade-in max-w-5xl mx-auto">
@@ -197,11 +223,11 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
           {produtoEncontrado && (
             <div className="mt-6 border-t pt-6" style={{borderColor: 'var(--color-border)'}}>
                 <h3 className="text-lg font-bold" style={{ color: 'var(--color-primary)' }}>{produtoEncontrado.descricao}</h3>
-                <p className="font-mono text-sm mb-4" style={{color: 'var(--color-text-secondary)'}}>Código: {produtoEncontrado.codigo} | Estoque: {produtoEncontrado.quantidade}</p>
+                <p className="font-mono text-sm mb-4" style={{color: 'var(--color-text-secondary)'}}>Código: {produtoEncontrado.codigo} | Estoque Total: {produtoEncontrado.quantidade}</p>
               
               <div className="flex flex-col sm:flex-row items-end gap-4">
                   <div className="flex-grow">
-                      <label htmlFor="quantidadeParaAdicionar" className="block mb-1 font-semibold">Qtd. de Etiquetas</label>
+                      <label htmlFor="quantidadeParaAdicionar" className="block mb-1 font-semibold text-sm">Quantas etiquetas?</label>
                       <input
                         id="quantidadeParaAdicionar"
                         type="text"
@@ -212,6 +238,30 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
                         className="w-full px-4 py-2"
                         style={{ backgroundColor: 'var(--color-background)', color: 'var(--color-text)', border: '1px solid var(--color-border)' }}
                       />
+                  </div>
+                  <div className="flex-grow">
+                      <label htmlFor="quantidadeNoTexto" className="block mb-1 font-semibold text-sm">Texto "Qtd:" na etiqueta</label>
+                       <div className="flex gap-2">
+                        <input
+                            id="quantidadeNoTexto"
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            value={quantidadeNoTexto}
+                            onChange={handleQuantidadeTextoChange}
+                            className="w-full px-4 py-2"
+                            style={{ backgroundColor: 'var(--color-background)', color: 'var(--color-text)', border: '1px solid var(--color-border)' }}
+                        />
+                         <button 
+                            type="button" 
+                            onClick={() => setQuantidadeNoTexto(produtoEncontrado.quantidade)}
+                            className="text-xs px-2 py-1 rounded border"
+                            style={{borderColor: 'var(--color-border)'}}
+                            title="Usar estoque total"
+                         >
+                            Max
+                         </button>
+                       </div>
                   </div>
                   <button onClick={handleAdicionarAFila} className="w-full sm:w-auto btn-primary flex items-center justify-center gap-2"><PlusIcon/> Adicionar à Fila</button>
               </div>
@@ -225,12 +275,12 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
             <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
               {filaImpressao.map(item => (
                 <div key={item.produto.id} className="grid grid-cols-12 gap-2 items-center p-2 rounded" style={{backgroundColor: 'var(--color-background)'}}>
-                  <div className="col-span-6">
+                  <div className="col-span-5 sm:col-span-6">
                     <p className="font-semibold truncate">{item.produto.descricao}</p>
                     <p className="text-xs font-mono" style={{color: 'var(--color-text-secondary)'}}>{item.produto.codigo}</p>
                   </div>
-                  <div className="col-span-3">
-                    <label className="text-xs" style={{color: 'var(--color-text-secondary)'}}>Nº Etiquetas</label>
+                  <div className="col-span-3 sm:col-span-3">
+                    <label className="text-xs block" style={{color: 'var(--color-text-secondary)'}}>Nº Etiquetas</label>
                     <input
                       type="number"
                       min="1"
@@ -240,8 +290,8 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
                       style={{ backgroundColor: 'var(--color-border)', color: 'var(--color-text)' }}
                     />
                   </div>
-                   <div className="col-span-2">
-                    <label className="text-xs" style={{color: 'var(--color-text-secondary)'}}>Qtd. Etiqueta</label>
+                   <div className="col-span-3 sm:col-span-2">
+                    <label className="text-xs block" style={{color: 'var(--color-text-secondary)'}}>Txt "Qtd:"</label>
                     <input
                       type="number"
                       min="0"
@@ -251,19 +301,19 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
                       style={{ backgroundColor: 'var(--color-border)', color: 'var(--color-text)' }}
                     />
                   </div>
-                  <div className="col-span-1 text-right self-end">
+                  <div className="col-span-1 text-right self-center">
                     <button onClick={() => handleRemoverDaFila(item.produto.id)} className="p-1 text-red-400 hover:text-red-300">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clipRule="evenodd" /></svg>
+                      <TrashIcon className="w-5 h-5"/>
                     </button>
                   </div>
                 </div>
               ))}
             </div>
             <div className="mt-6 border-t pt-4 flex flex-col sm:flex-row items-center justify-between gap-4" style={{borderColor: 'var(--color-border)'}}>
-                <div>
+                <div className="w-full sm:w-auto">
                   <label className="block mb-1 font-semibold">Padrão da Etiqueta</label>
                   <select value={selectedPresetId} onChange={(e) => setSelectedPresetId(e.target.value)} className="w-full px-4 py-2" style={{ backgroundColor: 'var(--color-background)', color: 'var(--color-text)', border: '1px solid var(--color-border)' }}>
-                    {presets.map(p => <option key={p.id} value={p.id}>{p.name} ({p.width}x{p.height}mm)</option>)}
+                    {presets.map(p => <option key={p.id} value={p.id}>{p.name} ({p.width}x{p.height}mm - {p.horizontalGap}mm gap)</option>)}
                   </select>
                 </div>
                 <button onClick={handleGenerate} className="w-full sm:w-auto btn-primary">{`Gerar Pré-visualização (${totalEtiquetasNaFila} Etiquetas)`}</button>
@@ -283,9 +333,12 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
             </div>
             <div id="printable-labels" className="flex flex-col">
               {Array.from({ length: Math.ceil(etiquetasGeradas.length / selectedPreset.labelsPerRow) }).map((_, rowIndex) => (
-                <div key={rowIndex} className="flex flex-row" style={{ gap: '5mm', marginBottom: '1mm', width: `${containerWidth}mm` }}>
+                <div key={rowIndex} className="flex flex-row" style={{ 
+                    gap: `${selectedPreset.horizontalGap}mm`, 
+                    marginBottom: `${selectedPreset.verticalGap}mm`, 
+                    width: `${containerWidth}mm` 
+                }}>
                   {etiquetasGeradas.slice(rowIndex * selectedPreset.labelsPerRow, (rowIndex + 1) * selectedPreset.labelsPerRow).map((produto, labelIndex) => {
-                    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(produto.codigo)}&qzone=1&margin=0`;
                     return (
                         <div key={`${produto.id}-${rowIndex}-${labelIndex}`} className="text-black bg-white flex flex-col text-center font-mono box-border justify-between"
                             style={{
@@ -298,7 +351,7 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
                             }}>
                             
                             <div className="flex flex-col items-center">
-                                <img src={qrCodeUrl} alt={`QR Code for ${produto.codigo}`} style={{ width: `${selectedPreset.qrCodeSize}mm`, height: `${selectedPreset.qrCodeSize}mm` }}/>
+                                <QRCodeGenerator value={produto.codigo} style={{ width: `${selectedPreset.qrCodeSize}mm`, height: `${selectedPreset.qrCodeSize}mm` }} />
                                 <p className="leading-tight mt-1" style={{ fontSize: `${selectedPreset.codeFontSize}pt`, margin: 0 }}>{produto.codigo}</p>
                             </div>
 
