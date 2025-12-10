@@ -202,7 +202,7 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
                         marginRight: isLastInRow ? 0 : `${selectedPreset.horizontalGap}mm`,
                         fontFamily: "'Courier New', Courier, monospace",
                         fontWeight: 'bold',
-                        padding: '1.5mm',
+                        padding: '2mm',
                         border: '1px dotted #ccc', // Will be hidden in print via CSS
                         pageBreakInside: 'avoid'
                     }}>
@@ -224,7 +224,7 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
                         {produto.descricao}
                     </p>
 
-                    <div className="flex justify-between w-full" style={{ fontSize: `${selectedPreset.footerFontSize}pt` }}>
+                    <div className="flex justify-between w-full" style={{ fontSize: `${selectedPreset.footerFontSize}pt`, marginBottom: '1mm' }}>
                         <span>loc: {produto.localizacao}</span>
                         <span>Qtd: {produto.quantidadeImpressa}</span>
                     </div>
