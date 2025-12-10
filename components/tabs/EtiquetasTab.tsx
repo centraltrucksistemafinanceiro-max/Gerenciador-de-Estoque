@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { pocketbaseService } from '../../services/pocketbaseService';
@@ -181,24 +182,29 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
 
   // Component that renders the actual labels. We use this for both Preview and Portal Print
   const LabelContent = () => (
-    <div className="flex flex-col">
-      {Array.from({ length: Math.ceil(etiquetasGeradas.length / selectedPreset.labelsPerRow) }).map((_, rowIndex) => (
-        <div key={rowIndex} className="flex flex-row" style={{ 
-            gap: `${selectedPreset.horizontalGap}mm`, 
-            marginBottom: `${selectedPreset.verticalGap}mm`, 
+    <div className="flex flex-col items-start bg-white" style={{ width: 'fit-content' }}>
+      {Array.from({ length: Math.ceil(etiquetasGeradas.length / selectedPreset.labelsPerRow) }).map((_, rowIndex) => {
+        const labelsInThisRow = etiquetasGeradas.slice(rowIndex * selectedPreset.labelsPerRow, (rowIndex + 1) * selectedPreset.labelsPerRow);
+        const isLastRow = rowIndex === Math.ceil(etiquetasGeradas.length / selectedPreset.labelsPerRow) - 1;
+
+        return (
+        <div key={rowIndex} className="flex flex-row flex-nowrap" style={{ 
+            marginBottom: isLastRow ? 0 : `${selectedPreset.verticalGap}mm`, 
             width: `${containerWidth}mm` 
         }}>
-          {etiquetasGeradas.slice(rowIndex * selectedPreset.labelsPerRow, (rowIndex + 1) * selectedPreset.labelsPerRow).map((produto, labelIndex) => {
+          {labelsInThisRow.map((produto, labelIndex) => {
+            const isLastInRow = labelIndex === labelsInThisRow.length - 1;
             return (
-                <div key={`${produto.id}-${rowIndex}-${labelIndex}`} className="text-black bg-white flex flex-col text-center font-mono box-border justify-between"
+                <div key={`${produto.id}-${rowIndex}-${labelIndex}`} className="text-black bg-white flex flex-col text-center font-mono box-border justify-between overflow-hidden flex-shrink-0"
                     style={{
                         width: `${selectedPreset.width}mm`,
                         height: `${selectedPreset.height}mm`,
+                        marginRight: isLastInRow ? 0 : `${selectedPreset.horizontalGap}mm`,
                         fontFamily: "'Courier New', Courier, monospace",
                         fontWeight: 'bold',
                         padding: '1.5mm',
-                        overflow: 'hidden',
-                        border: '1px dotted #ccc' // Light border for preview/print cut guide (optional)
+                        border: '1px dotted #ccc', // Will be hidden in print via CSS
+                        pageBreakInside: 'avoid'
                     }}>
                     
                     <div className="flex flex-col items-center">
@@ -226,7 +232,7 @@ export const EtiquetasTab: React.FC<EtiquetasTabProps> = ({ empresaId, showToast
             )
           })}
         </div>
-      ))}
+      )})}
     </div>
   );
 
