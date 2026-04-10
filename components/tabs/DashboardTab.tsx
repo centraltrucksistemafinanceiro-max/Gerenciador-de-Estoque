@@ -44,24 +44,35 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({ empresaId, showToast
   const [movimentacoes, setMovimentacoes] = useState<Movimentacao[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Default to last 30 days
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return d.toISOString().split('T')[0];
+  });
+  const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+
+
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
       try {
         const [produtosData, movimentacoesData] = await Promise.all([
           pocketbaseService.getAllProdutos(empresaId, true), // Inclui inativos para análise completa
-          pocketbaseService.getMovimentacoes(empresaId, {}),
+          pocketbaseService.getMovimentacoes(empresaId, { dataInicio: startDate, dataFim: endDate }),
         ]);
         setProdutos(produtosData);
         setMovimentacoes(movimentacoesData);
       } catch (error) {
+        console.error("Dashboard Fetch Error:", error);
         showToast('Erro ao carregar dados do dashboard.', 'error');
       } finally {
         setIsLoading(false);
       }
     };
     fetchData();
-  }, [empresaId, showToast]);
+  }, [empresaId, showToast, startDate, endDate]);
+
 
   const activeProdutos = useMemo(() => produtos.filter(p => p.status === 'ativo'), [produtos]);
 
@@ -157,10 +168,37 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({ empresaId, showToast
 
   return (
     <div className="animate-fade-in space-y-6">
-      <div className="flex items-center gap-2">
-        <h2 className="text-2xl font-bold" style={{ color: 'var(--color-text)' }}>Dashboard Analítico</h2>
-        <HelpIcon text="Visualize os principais indicadores e análises do seu estoque em tempo real." />
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="flex items-center gap-2">
+            <h2 className="text-2xl font-bold" style={{ color: 'var(--color-text)' }}>Dashboard Analítico</h2>
+            <HelpIcon text="Visualize os principais indicadores e análises do seu estoque em tempo real." />
+        </div>
+        
+        <div className="flex items-center gap-2 p-2 rounded-lg shadow-sm" style={{ backgroundColor: 'var(--color-card)', border: '1px solid var(--color-border)' }}>
+            <div className="flex flex-col">
+                <label className="text-[10px] uppercase font-bold px-1" style={{color: 'var(--color-text-secondary)'}}>Início</label>
+                <input 
+                    type="date" 
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="bg-transparent text-sm p-1 focus:outline-none"
+                    style={{color: 'var(--color-text)'}}
+                />
+            </div>
+            <div className="h-8 w-[1px]" style={{backgroundColor: 'var(--color-border)'}}></div>
+            <div className="flex flex-col">
+                <label className="text-[10px] uppercase font-bold px-1" style={{color: 'var(--color-text-secondary)'}}>Fim</label>
+                <input 
+                    type="date" 
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="bg-transparent text-sm p-1 focus:outline-none"
+                    style={{color: 'var(--color-text)'}}
+                />
+            </div>
+        </div>
       </div>
+
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

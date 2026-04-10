@@ -254,7 +254,9 @@ export const pocketbaseService = {
         return pb.collection('movimentacoes').getFullList<Movimentacao>({
             filter: filterParts.join(' && '),
             sort: '-created',
-            expand: 'usuario'
+            expand: 'usuario',
+            batch: 1000,
+            '$autoCancel': false,
         });
     },
 
