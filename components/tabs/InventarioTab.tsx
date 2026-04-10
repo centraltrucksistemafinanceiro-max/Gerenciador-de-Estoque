@@ -30,7 +30,7 @@ export const InventarioTab: React.FC<InventarioTabProps> = ({ empresaId, onNavig
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
   const [isLocationMenuOpen, setIsLocationMenuOpen] = useState(false);
 
-  const [sortKey, setSortKey] = useState<SortKey>('descricao');
+  const [sortKey, setSortKey] = useState<SortKey>('localizacao');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(300);

@@ -118,9 +118,9 @@ export const pocketbaseService = {
         
         const filter = filterParts.join(' && ');
         const sortDirection = options.sortDirection === 'desc' ? '-' : '+';
-        const primarySort = `${sortDirection}${options.sortKey || 'descricao'}`;
-        // Adiciona descrição como critério de desempate sempre que possível
-        const sort = options.sortKey !== 'descricao' ? `${primarySort},+descricao` : primarySort;
+        const primarySort = `${sortDirection}${options.sortKey || 'localizacao'}`;
+        // Adiciona um critério de desempate
+        const sort = options.sortKey === 'localizacao' ? `${primarySort},+codigo` : `${primarySort},+localizacao`;
 
         const produtos = await pb.collection('produtos').getFullList<Produto>({ filter, sort, batch: 4000, '$autoCancel': false });
 
