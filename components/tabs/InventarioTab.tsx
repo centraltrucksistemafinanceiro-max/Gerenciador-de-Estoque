@@ -309,13 +309,20 @@ export const InventarioTab: React.FC<InventarioTabProps> = ({ empresaId, onNavig
             
             {isLocationMenuOpen && (
                 <div className="absolute top-full left-0 right-0 mt-1 z-50 rounded-md shadow-xl max-h-60 overflow-y-auto" style={{ backgroundColor: 'var(--color-card)', border: '1px solid var(--color-border)' }}>
-                    <div className="p-2 border-b sticky top-0 z-10" style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}>
+                    <div className="p-2 border-b sticky top-0 z-10 flex justify-between items-center" style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}>
                          <button 
-                            onClick={() => setSelectedLocations([])}
+                            onClick={() => setSelectedLocations(allLocations)}
                             className="text-xs font-semibold hover:opacity-80"
                             style={{color: 'var(--color-primary)'}}
                         >
-                            Limpar Todas
+                            Selecionar Todas
+                        </button>
+                         <button 
+                            onClick={() => setSelectedLocations([])}
+                            className="text-xs font-semibold hover:opacity-80"
+                            style={{color: 'var(--color-text-secondary)'}}
+                        >
+                            Limpar
                         </button>
                     </div>
                     {allLocations.map(location => (
