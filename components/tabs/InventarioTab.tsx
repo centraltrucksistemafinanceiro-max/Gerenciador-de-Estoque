@@ -4,7 +4,7 @@ import { pocketbaseService } from '../../services/pocketbaseService';
 import type { Produto, Tab } from '../../types';
 import { formatCurrency } from '../../utils/formatters';
 import Spinner from '../Spinner';
-import { PrintIcon, ViewIcon, EditIcon, FileSpreadsheetIcon, ArrowUpIcon, ArrowDownIcon } from '../icons/Icon';
+import { PrintIcon, ViewIcon, EditIcon, FileSpreadsheetIcon, ArrowUpIcon, ArrowDownIcon, ArrowsRightLeftIcon } from '../icons/Icon';
 import HelpIcon from '../HelpIcon';
 import { useDebounce } from '../../hooks/useDebounce';
 import QRCodeGenerator from '../QRCodeGenerator';
@@ -430,6 +430,14 @@ export const InventarioTab: React.FC<InventarioTabProps> = ({ empresaId, onNavig
                         title="Ver Produto"
                       >
                         <ViewIcon className="w-5 h-5" />
+                      </button>
+                       <button
+                        onClick={() => onNavigateToTab('movimentacao', { codigoBuscaInicial: produto.codigo })}
+                        className="p-2 rounded-full transition-colors hover:bg-gray-700"
+                        style={{color: 'var(--color-primary)'}}
+                        title="Registrar Movimentação"
+                      >
+                        <ArrowsRightLeftIcon className="w-5 h-5" />
                       </button>
                       <button
                         onClick={() => onNavigateToTab('cadastro', { produtoParaEditar: produto })}
