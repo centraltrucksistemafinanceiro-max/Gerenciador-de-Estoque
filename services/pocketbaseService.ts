@@ -94,7 +94,7 @@ export const pocketbaseService = {
         includeInactive: boolean = false, 
         options: { 
             searchTerm?: string; 
-            location?: string;
+            locations?: string[];
             sortKey?: string;
             sortDirection?: 'asc' | 'desc';
         } = {}
@@ -111,26 +111,38 @@ export const pocketbaseService = {
             filterParts.push(searchFilter);
         }
 
-        if (options.location) {
-            filterParts.push(`localizacao = "${options.location}"`);
+        if (options.locations && options.locations.length > 0) {
+            const locationsFilter = options.locations.map(loc => `localizacao = "${loc}"`).join(' || ');
+            filterParts.push(`(${locationsFilter})`);
         }
         
         const filter = filterParts.join(' && ');
         const sortDirection = options.sortDirection === 'desc' ? '-' : '+';
         const sort = `${sortDirection}${options.sortKey || 'descricao'}`;
 
-        const produtos = await pb.collection('produtos').getFullList<Produto>({ filter, sort });
+        const produtos = await pb.collection('produtos').getFullList<Produto>({ filter, sort, batch: 4000, '$autoCancel': false });
+
         return produtos;
     },
     
     async getUniqueProductLocations(empresaId: string): Promise<string[]> {
-        const records = await pb.collection('produtos').getFullList<Pick<Produto, 'localizacao'>>({
-            filter: `empresa = "${empresaId}" && localizacao != ""`,
-            fields: 'localizacao',
+        if (!empresaId) return [];
+        
+        const records = await pb.collection('produtos').getFullList<Produto>({
+            filter: `empresa = "${empresaId}"`,
+            sort: 'localizacao',
+            '$autoCancel': false,
+        });
+
+        
+        const locations = new Set<string>();
+        records.forEach(r => {
+            if (r.localizacao && r.localizacao.trim()) {
+                locations.add(r.localizacao.trim());
+            }
         });
         
-        const locations = new Set<string>(records.map(r => r.localizacao.trim()));
-        return Array.from(locations).filter(l => l !== '').sort();
+        return Array.from(locations).sort();
     },
 
     async cadastrarProduto(novoProdutoData: Omit<Produto, 'id' | 'collectionId' | 'collectionName' | 'created' | 'updated'>, userId: string): Promise<Produto> {

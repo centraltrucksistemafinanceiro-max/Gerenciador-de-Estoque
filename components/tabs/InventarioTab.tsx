@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+
 import { pocketbaseService } from '../../services/pocketbaseService';
 import type { Produto, Tab } from '../../types';
 import { formatCurrency } from '../../utils/formatters';
@@ -26,33 +27,41 @@ export const InventarioTab: React.FC<InventarioTabProps> = ({ empresaId, onNavig
   const [isExporting, setIsExporting] = useState(false);
   const [searchTermInput, setSearchTermInput] = useState('');
   const [showInactive, setShowInactive] = useState(false);
-  const [selectedLocation, setSelectedLocation] = useState('');
-  const [allLocations, setAllLocations] = useState<string[]>([]);
+  const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
+  const [isLocationMenuOpen, setIsLocationMenuOpen] = useState(false);
+
   const [sortKey, setSortKey] = useState<SortKey>('descricao');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(50);
+  
+  const locationMenuRef = useRef<HTMLDivElement>(null);
+
+
+
 
   const debouncedSearchTerm = useDebounce(searchTermInput, 300);
 
-  // Effect to fetch unique locations for the filter dropdown
+  const [allLocations, setAllLocations] = useState<string[]>([]);
+
+  // Fetch ALL unique locations once when company changes
   useEffect(() => {
     let isMounted = true;
-    const fetchLocations = async () => {
+    const fetchAllPossibleLocations = async () => {
       try {
         const locationsData = await pocketbaseService.getUniqueProductLocations(empresaId);
         if (isMounted) {
           setAllLocations(locationsData);
         }
-      } catch (error: any) {
-        // Gracefully handle request cancellation, which is not a true error
-        if (!error.isAbort) {
-            console.error("Erro ao carregar localizações:", error);
-            showToast('Falha ao carregar filtros de localização.', 'error');
-        }
+      } catch (error) {
+        console.error("Erro ao carregar localizações:", error);
       }
     };
-    fetchLocations();
+    fetchAllPossibleLocations();
     return () => { isMounted = false; };
-  }, [empresaId, showToast]);
+  }, [empresaId]);
+
+
 
   // Main effect to fetch filtered and sorted products from the server
   useEffect(() => {
@@ -62,10 +71,11 @@ export const InventarioTab: React.FC<InventarioTabProps> = ({ empresaId, onNavig
       try {
         const options = {
           searchTerm: debouncedSearchTerm,
-          location: selectedLocation,
+          locations: selectedLocations,
           sortKey: sortKey,
           sortDirection: sortDirection,
         };
+
         const data = await pocketbaseService.getAllProdutos(empresaId, showInactive, options);
         if (isMounted) {
           setProdutos(data);
@@ -84,7 +94,27 @@ export const InventarioTab: React.FC<InventarioTabProps> = ({ empresaId, onNavig
     };
     fetchProdutos();
     return () => { isMounted = false; };
-  }, [empresaId, showInactive, debouncedSearchTerm, selectedLocation, sortKey, sortDirection, showToast]);
+  }, [empresaId, showInactive, debouncedSearchTerm, selectedLocations, sortKey, sortDirection, showToast]);
+
+  const toggleLocation = (location: string) => {
+    setSelectedLocations(prev => 
+      prev.includes(location) 
+        ? prev.filter(l => l !== location)
+        : [...prev, location]
+    );
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (locationMenuRef.current && !locationMenuRef.current.contains(event.target as Node)) {
+        setIsLocationMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -98,6 +128,21 @@ export const InventarioTab: React.FC<InventarioTabProps> = ({ empresaId, onNavig
   const valorTotalInventario = useMemo(() => {
     return produtos.reduce((acc, p) => acc + p.valor * p.quantidade, 0);
   }, [produtos]);
+
+  const totalPages = Math.ceil(produtos.length / itemsPerPage);
+  
+  const paginatedProdutos = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return produtos.slice(startIndex, startIndex + itemsPerPage);
+  }, [produtos, currentPage, itemsPerPage]);
+
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [debouncedSearchTerm, selectedLocations, showInactive, sortKey, sortDirection]);
+
+
 
   const handlePrint = () => {
     window.print();
@@ -245,20 +290,51 @@ export const InventarioTab: React.FC<InventarioTabProps> = ({ empresaId, onNavig
                 style={{ backgroundColor: 'var(--color-background)', color: 'var(--color-text)', border: '1px solid var(--color-border)' }}
             />
         </div>
-        <div className="flex-grow w-full sm:w-auto">
-            <label htmlFor="location-filter" className="block text-sm font-medium mb-1" style={{color: 'var(--color-text-secondary)'}}>Localização</label>
-            <select
-                id="location-filter"
-                value={selectedLocation}
-                onChange={(e) => setSelectedLocation(e.target.value)}
-                className="px-4 py-2 w-full"
+        <div className="flex-grow w-full sm:w-auto relative" ref={locationMenuRef}>
+
+            <label className="block text-sm font-medium mb-1" style={{color: 'var(--color-text-secondary)'}}>Localizações ({selectedLocations.length})</label>
+            <button
+                type="button"
+                onClick={() => setIsLocationMenuOpen(!isLocationMenuOpen)}
+                className="px-4 py-2 w-full text-left flex justify-between items-center rounded-md"
                 style={{ backgroundColor: 'var(--color-background)', color: 'var(--color-text)', border: '1px solid var(--color-border)' }}
             >
-                <option value="">Todas</option>
-                {allLocations.map(location => (
-                    <option key={location} value={location}>{location}</option>
-                ))}
-            </select>
+                <span className="truncate">
+                    {selectedLocations.length === 0 ? 'Todas' : 
+                     selectedLocations.length === 1 ? selectedLocations[0] : 
+                     `${selectedLocations.length} selecionadas`}
+                </span>
+                <ArrowDownIcon className={`w-4 h-4 transition-transform ${isLocationMenuOpen ? 'rotate-180' : ''}`} />
+            </button>
+            
+            {isLocationMenuOpen && (
+                <div className="absolute top-full left-0 right-0 mt-1 z-50 rounded-md shadow-xl max-h-60 overflow-y-auto" style={{ backgroundColor: 'var(--color-card)', border: '1px solid var(--color-border)' }}>
+                    <div className="p-2 border-b sticky top-0 z-10" style={{ backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)' }}>
+                         <button 
+                            onClick={() => setSelectedLocations([])}
+                            className="text-xs font-semibold hover:opacity-80"
+                            style={{color: 'var(--color-primary)'}}
+                        >
+                            Limpar Todas
+                        </button>
+                    </div>
+                    {allLocations.map(location => (
+                        <label key={location} className="flex items-center px-4 py-2 hover:bg-white/5 cursor-pointer text-sm">
+                            <input
+                                type="checkbox"
+                                checked={selectedLocations.includes(location)}
+                                onChange={() => toggleLocation(location)}
+                                className="mr-3 h-4 w-4 rounded-sm"
+                                style={{accentColor: 'var(--color-primary)'}}
+                            />
+                            <span className="truncate">{location}</span>
+                        </label>
+                    ))}
+                    {allLocations.length === 0 && (
+                        <div className="p-4 text-center text-xs text-[var(--color-text-secondary)]">Nenhuma localização encontrada.</div>
+                    )}
+                </div>
+            )}
         </div>
         <div className="flex items-center">
             <input
@@ -273,7 +349,25 @@ export const InventarioTab: React.FC<InventarioTabProps> = ({ empresaId, onNavig
                 Mostrar inativos
             </label>
         </div>
+        <div className="flex-grow w-full sm:w-auto">
+            <label htmlFor="items-per-page" className="block text-sm font-medium mb-1" style={{color: 'var(--color-text-secondary)'}}>Itens por página</label>
+            <select
+                id="items-per-page"
+                value={itemsPerPage}
+                onChange={(e) => {
+                    setItemsPerPage(Number(e.target.value));
+                    setCurrentPage(1);
+                }}
+                className="px-4 py-2 w-full"
+                style={{ backgroundColor: 'var(--color-background)', color: 'var(--color-text)', border: '1px solid var(--color-border)' }}
+            >
+                {[50, 100, 150, 200, 250, 300].map(val => (
+                    <option key={val} value={val}>{val}</option>
+                ))}
+            </select>
+        </div>
     </div>
+
 
 
       <div id="printable-stock-report">
@@ -299,7 +393,8 @@ export const InventarioTab: React.FC<InventarioTabProps> = ({ empresaId, onNavig
                 <td colSpan={8} className="text-center p-8"><Spinner/></td>
               </tr>
             )}
-            {!isLoading && produtos.map((produto) => {
+            {!isLoading && paginatedProdutos.map((produto) => {
+
               return (
               <tr key={produto.id} className="border-t hover:bg-white/5" style={{ borderColor: 'var(--color-border)', opacity: produto.status === 'inativo' ? 0.5 : 1 }}>
                 <td className="p-4 font-mono align-middle">
@@ -356,7 +451,34 @@ export const InventarioTab: React.FC<InventarioTabProps> = ({ empresaId, onNavig
           </tfoot>
         </table>
         </div>
+
+        {!isLoading && totalPages > 1 && (
+            <div className="no-print flex justify-center items-center gap-4 mt-6">
+                <button
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="px-4 py-2 rounded-md border flex items-center gap-2 disabled:opacity-50 transition-colors"
+                    style={{backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)', color: 'var(--color-text)'}}
+                >
+                    Anterior
+                </button>
+                <div className="flex items-center gap-2">
+                    <span className="text-sm" style={{color: 'var(--color-text-secondary)'}}>Página</span>
+                    <span className="font-bold">{currentPage}</span>
+                    <span className="text-sm" style={{color: 'var(--color-text-secondary)'}}>de {totalPages}</span>
+                </div>
+                <button
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="px-4 py-2 rounded-md border flex items-center gap-2 disabled:opacity-50 transition-colors"
+                    style={{backgroundColor: 'var(--color-card)', borderColor: 'var(--color-border)', color: 'var(--color-text)'}}
+                >
+                    Próxima
+                </button>
+            </div>
+        )}
       </div>
     </div>
+
   );
 };
