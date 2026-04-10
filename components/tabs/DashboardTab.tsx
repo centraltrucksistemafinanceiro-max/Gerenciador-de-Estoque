@@ -28,7 +28,8 @@ const DashboardCard: React.FC<{
   value: string | number;
   colorClass: string;
 }> = ({ icon, title, value, colorClass }) => (
-  <div className="p-4 rounded-xl flex items-center gap-4 shadow-md transition-all hover:shadow-lg hover:-translate-y-1" style={{ backgroundColor: 'var(--color-card)', border: '1px solid var(--color-border)' }}>
+  <div className="p-4 rounded-xl flex items-center gap-4 shadow-md premium-card opacity-0 animate-slide-up" style={{ backgroundColor: 'var(--color-card)', border: '1px solid var(--color-border)' }}>
+
     <div className={`p-3 rounded-full ${colorClass}`}>
         {icon}
     </div>
@@ -202,17 +203,19 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({ empresaId, showToast
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <DashboardCard icon={<DollarSignIcon />} title="Valor Total do Estoque" value={formatCurrency(kpis.valorTotal)} colorClass="bg-green-500/20 text-green-400" />
-        <DashboardCard icon={<PackageIcon />} title="Itens Únicos (SKUs)" value={kpis.totalItens} colorClass="bg-blue-500/20 text-blue-400" />
-        <DashboardCard icon={<PackageIcon />} title="Quantidade Total de Peças" value={kpis.totalPecas.toLocaleString('pt-BR')} colorClass="bg-sky-500/20 text-sky-400" />
-        <DashboardCard icon={<AlertTriangleIcon />} title="Alertas de Estoque Baixo" value={kpis.estoqueBaixo} colorClass="bg-yellow-500/20 text-yellow-400" />
+        <div className="stagger-1"><DashboardCard icon={<DollarSignIcon />} title="Valor Total do Estoque" value={formatCurrency(kpis.valorTotal)} colorClass="bg-green-500/20 text-green-400" /></div>
+        <div className="stagger-2"><DashboardCard icon={<PackageIcon />} title="Itens Únicos (SKUs)" value={kpis.totalItens} colorClass="bg-blue-500/20 text-blue-400" /></div>
+        <div className="stagger-3"><DashboardCard icon={<PackageIcon />} title="Quantidade Total de Peças" value={kpis.totalPecas.toLocaleString('pt-BR')} colorClass="bg-sky-500/20 text-sky-400" /></div>
+        <div className="stagger-4"><DashboardCard icon={<AlertTriangleIcon />} title="Alertas de Estoque Baixo" value={kpis.estoqueBaixo} colorClass="bg-yellow-500/20 text-yellow-400" /></div>
       </div>
+
 
       {/* Analysis Panels */}
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
 
         {/* Mais Vendidos */}
-        <div className="p-4 rounded-lg space-y-2 lg:col-span-1 shadow-md" style={{ backgroundColor: 'var(--color-card)', border: '1px solid var(--color-border)' }}>
+        <div className="p-4 rounded-lg space-y-2 lg:col-span-1 shadow-md premium-card animate-fade-in stagger-2" style={{ backgroundColor: 'var(--color-card)', border: '1px solid var(--color-border)' }}>
+
           <h3 className="font-bold text-lg flex items-center gap-2"><TrendingUpIcon className="w-5 h-5 text-green-400" /> Produtos Mais Vendidos</h3>
           {maisVendidos.length > 0 ? maisVendidos.map(({ codigo, produto, quantidade }) => (
             <div key={codigo} className="flex justify-between items-center text-sm p-2 rounded-md hover:bg-white/5 cursor-pointer" onClick={() => produto && onNavigateToTab('consulta', { codigoBuscaInicial: produto.codigo })}>
@@ -226,7 +229,8 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({ empresaId, showToast
         </div>
         
         {/* Estoque Parado */}
-         <div className="p-4 rounded-lg space-y-2 lg:col-span-1 shadow-md" style={{ backgroundColor: 'var(--color-card)', border: '1px solid var(--color-border)' }}>
+         <div className="p-4 rounded-lg space-y-2 lg:col-span-1 shadow-md premium-card animate-fade-in stagger-3" style={{ backgroundColor: 'var(--color-card)', border: '1px solid var(--color-border)' }}>
+
           <h3 className="font-bold text-lg flex items-center gap-2"><ClockIcon className="w-5 h-5 text-yellow-400"/> Estoque Parado</h3>
           {estoqueParado.length > 0 ? estoqueParado.map(({ produto, ultimaVenda }) => (
             <div key={produto.id} className="flex justify-between items-center text-sm p-2 rounded-md hover:bg-white/5 cursor-pointer" onClick={() => onNavigateToTab('consulta', { codigoBuscaInicial: produto.codigo })}>
@@ -242,7 +246,8 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({ empresaId, showToast
         </div>
 
         {/* Curva ABC */}
-        <div className="p-4 rounded-lg lg:col-span-1 shadow-md" style={{ backgroundColor: 'var(--color-card)', border: '1px solid var(--color-border)' }}>
+        <div className="p-4 rounded-lg lg:col-span-1 shadow-md premium-card animate-fade-in stagger-4" style={{ backgroundColor: 'var(--color-card)', border: '1px solid var(--color-border)' }}>
+
             <h3 className="font-bold text-lg mb-3">Análise de Curva ABC</h3>
             <div className="space-y-3 text-sm">
                 <div className="flex justify-between items-center">

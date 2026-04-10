@@ -277,7 +277,7 @@ export const InventarioTab: React.FC<InventarioTabProps> = ({ empresaId, onNavig
         </div>
       </div>
       
-      <div className="no-print p-4 rounded-lg mb-6 flex flex-col sm:flex-row flex-wrap items-end gap-4 shadow-md" style={{ backgroundColor: 'var(--color-card)', border: '1px solid var(--color-border)' }}>
+      <div className="no-print p-4 rounded-xl mb-6 flex flex-col sm:flex-row flex-wrap items-end gap-4 shadow-md premium-card animate-slide-up" style={{ backgroundColor: 'var(--color-card)', border: '1px solid var(--color-border)' }}>
         <div className="flex-grow w-full sm:w-auto">
             <label htmlFor="search-term" className="block text-sm font-medium mb-1" style={{color: 'var(--color-text-secondary)'}}>Buscar</label>
             <input
@@ -380,7 +380,7 @@ export const InventarioTab: React.FC<InventarioTabProps> = ({ empresaId, onNavig
       <div id="printable-stock-report">
         <h1 className="text-3xl font-bold text-center mb-4 hidden print:block" style={{color: 'black'}}>Relatório de Estoque</h1>
         <p className="text-lg text-center mb-8 hidden print:block" style={{color: 'black'}}>Data de Emissão: {new Date().toLocaleDateString('pt-BR')}</p>
-        <div className="overflow-x-auto rounded-lg shadow-md" style={{ backgroundColor: 'var(--color-card)', border: '1px solid var(--color-border)' }}>
+        <div className="overflow-x-auto rounded-xl shadow-md premium-card animate-fade-in stagger-2" style={{ backgroundColor: 'var(--color-card)', border: '1px solid var(--color-border)' }}>
         <table className="w-full min-w-[900px] text-left print:text-black">
           <thead style={{ backgroundColor: 'var(--color-background)' }}>
             <tr>
