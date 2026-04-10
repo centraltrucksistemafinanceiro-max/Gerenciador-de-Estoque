@@ -41,7 +41,7 @@ export const pocketbaseService = {
 
     // --- COMPANY METHODS ---
     async getAllEmpresas(): Promise<Empresa[]> {
-        return pb.collection('empresas').getFullList<Empresa>({ sort: 'nome' });
+        return pb.collection('empresas').getFullList<Empresa>({ sort: 'nome', '$autoCancel': false });
     },
     
     async createEmpresa(nome: string): Promise<Empresa> {
@@ -78,7 +78,7 @@ export const pocketbaseService = {
 
         const filter = `empresa = "${empresaId}" && (codigo = "${codigo}" || codigos_alternativos ~ "${codigo}")`;
         try {
-            const produto = await pb.collection('produtos').getFirstListItem<Produto>(filter);
+            const produto = await pb.collection('produtos').getFirstListItem<Produto>(filter, { '$autoCancel': false });
             productCache.set(cacheKey, produto);
             return produto;
         } catch (error: any) {
